@@ -1,14 +1,14 @@
 import common
 import syntax
-import types
+import kinds
 
 def primitive_types():
     return [
-        ('_→_', types.Fun(
-                  domain=types.Set(),
-                  codomain=types.Fun(
-                    domain=types.Set(),
-                    codomain=types.Set()
+        ('_→_', kinds.Fun(
+                  domain=kinds.Set(),
+                  codomain=kinds.Fun(
+                    domain=kinds.Set(),
+                    codomain=kinds.Set()
                   )
                 )
         )
@@ -64,7 +64,7 @@ class TypeChecker:
         for decl in program.data_declarations:
             self.check_data_declaration_rhs(decl)
 
-        # TODO: extend environment for recursive definitions
+        # Check the expression of the main program
         self.check_expr(program.body)
 
     def check_data_declaration_lhs(self, decl):
@@ -83,7 +83,7 @@ class TypeChecker:
         if self._typenv.is_locally_defined(lhs.name):
             self.fail('data-lhs-type-already-defined', name=lhs.name,
                       position=lhs.position)
-        self._typenv.define(lhs.name, types.fresh_kind(arity))
+        self._typenv.define(lhs.name, kinds.fresh_kind(arity))
 
     def check_data_declaration_rhs(self, decl):
         type_name = decl.lhs.application_head().name
@@ -96,32 +96,9 @@ class TypeChecker:
             self.fail('constructor-already-defined',
                       name=constructor_name,
                       position=decl.position)
-
-        free_vars = set([])
-        for var in decl.type.free_variables():
-            if not self._typenv.is_defined(var):
-                free_vars.add(var)
-
-        closed_type = decl.type
-        for var in free_vars:
-            closed_type = syntax.Forall(var=var, body=closed_type)
-
+        closed_type = self.close_type(decl.type)
         self._typenv.open_scope()
-        kind = self.check_kind(closed_type)
-
-        try:
-            types.unify(kind, types.Set())
-        except types.UnificationFailure:
-            self.fail('expected-atomic-kind',
-                      type=decl.type,
-                      kind=kind,
-                      position=decl.type.position)
-
-        #for var in free_vars:
-        #    print("{var} :: {kind}".format(
-        #          var=var,
-        #          kind=self._typenv.local_value(var)))
-        #print("constructor :: {kind}".format(kind=kind))
+        self.check_type_has_atomic_kind(closed_type)
         self._typenv.close_scope()
         if not self.constructor_returns_instance(type_name, decl.type):
             self.fail('constructor-must-return-instance',
@@ -129,19 +106,26 @@ class TypeChecker:
                       constructor_name=constructor_name,
                       type=decl.type,
                       position=decl.type.position)
-
         self._env.define(constructor_name, closed_type)
 
-        ## DEBUG
-        for rib in self._typenv._ribs:
-            for k, v in rib.items():
-                print(k, v)
-        for rib in self._env._ribs:
-            for k, v in rib.items():
-                print(k, v)
-        ## END DEBUG
+    def close_type(self, type):
+        free_vars = set([])
+        for var in type.free_variables():
+            if not self._typenv.is_defined(var):
+                free_vars.add(var)
+        return syntax.forall(free_vars, type)
+
+    def check_type_has_atomic_kind(self, type):
+        kind = self.check_type_kind(type)
+        try:
+            kinds.unify(kind, kinds.Set())
+        except kinds.UnificationFailure:
+            self.fail('expected-atomic-kind',
+                      type=type,
+                      kind=kind,
+                      position=type.position)
  
-    def check_kind(self, expr):
+    def check_type_kind(self, expr):
         # Possible types are:
         #   variables     (including _→_)
         #   applications
@@ -153,20 +137,20 @@ class TypeChecker:
                           position=expr.position)
             return self._typenv.value(expr.name)
         elif expr.is_application():
-            kfun = self.check_kind(expr.fun)
-            karg = self.check_kind(expr.arg)
-            kres = types.Metavar(prefix='t')
+            kfun = self.check_type_kind(expr.fun)
+            karg = self.check_type_kind(expr.arg)
+            kres = kinds.Metavar(prefix='t')
             try:
-                types.unify(kfun, types.Fun(domain=karg, codomain=kres))
-            except types.UnificationFailure as e:
+                kinds.unify(kfun, kinds.Fun(domain=karg, codomain=kres))
+            except kinds.UnificationFailure as e:
                 self.fail('kinds-do-not-unify',
                           kind1=e.type1,
                           kind2=e.type2,
                           position=expr.position)
             return kres
         elif expr.is_forall():
-            self._typenv.define(expr.var, types.Metavar(prefix='t'))
-            return self.check_kind(expr.body)
+            self._typenv.define(expr.var, kinds.Metavar(prefix='t'))
+            return self.check_type_kind(expr.body)
         self.fail('expected-a-type',
                   got=expr,
                   position=expr.position)
@@ -183,7 +167,79 @@ class TypeChecker:
         else:
             return False
 
-    def check_expr(self, decl):
+    def check_expr(self, expr):
+        if expr.is_let():
+            self.check_let(expr)
+        else:
+            print('KE')
+
+    def check_let(self, expr):
+        # Check kinds and extend environment
+        # to allow for recursive definitions.
+        declared_names = set()
+        definitions = {}
+        self._env.open_scope()
+        for decl in expr.declarations:
+            if decl.is_type_declaration():
+                self.check_type_declaration(decl)
+                declared_names.add(decl.name)
+            elif decl.is_definition():
+                head = decl.lhs.application_head()
+                if not head.is_variable():
+                    self.fail('declaration-head-is-not-variable',
+                               head=head,
+                               position=decl.position)
+                declared_names.add(head.name)
+                definitions[head.name] = definitions.get(head.name, [])
+                definitions[head.name].append(decl)
+                if not self._env.is_locally_defined(head.name):
+                    self._env.define(head.name, syntax.Metavar(prefix='t'))
+            else:
+                raise Exception('Check for declaration not implemented.')
+
+        defined_names = set(definitions.keys())
+        if declared_names != defined_names:
+            missing = declared_names - defined_names
+            self.fail('name-declared-but-not-defined',
+                       name=missing.pop(),
+                       position=expr.position)
+
+        for decl in expr.declarations:
+            if decl.is_definition():
+                self.desugar_definition(decl)
+                # TODO: desugar all the definitions into a single one
+
+        ## DEBUG
+        print()
+        for rib in self._env._ribs:
+            for k, v in rib.items():
+                print('{k} : {v}'.format(k=k, v=v.show()))
+                print()
+        ## END DEBUG
+
+        ## DEBUG
+        for name in defined_names:
+            print(name)
+            for decl in definitions[name]:
+                print('  {decl}'.format(decl=decl.show()))
+            print()
+            # TODO: check where clause
+        ## END DEBUG
+
+        # TODO: check types
+        self._env.close_scope()
+
+    def check_type_declaration(self, decl):
+        if self._env.is_locally_defined(decl.name):
+            self.fail('value-already-defined', name=decl.name,
+                      position=decl.position)
+        closed_type = self.close_type(decl.type)
+        self._typenv.open_scope()
+        self.check_type_has_atomic_kind(closed_type)
+        self._typenv.close_scope()
+        self._env.define(decl.name, closed_type)
+
+    def desugar_definition(self, decl):
         pass
 
     def fail(self, msg, **args):

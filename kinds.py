@@ -31,7 +31,7 @@ class Set(Type):
         return True
 
     def free_metavars(self):
-        return set([])
+        return set()
 
 class Fun(Type):
 

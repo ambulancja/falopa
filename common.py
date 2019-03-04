@@ -1,4 +1,7 @@
 
+def indent(text, n=2):
+    return '\n'.join([' ' * n + line for line in text.split('\n')])
+
 def is_blank(c):
     return c in [' ', '\t', '\r', '\n']
 
@@ -30,26 +33,27 @@ E_MESSAGES = {
         'Invalid character (0x{character}).',
     'lexer:consecutive-underscores':
         'A name cannot contain two consecutive underscores.',
+
+    'precedece:not-an-operator':
+        'Name "{name}" is not an operator.',
+    'precedence:operator-already-exists':
+        'Operator "{name}" has already been declared before.',
+
     'parser:token-mismatch':
         'Expected {expected} but got {got}.',
-    'parser:expected-value-declaration':
-        'Expected a declaration but got {got}.',
     'parser:expected-atom':
         'Expected an atom but got {got}.',
     'parser:expected-operator-part':
         'Expected part of an operator. Status: {status}.',
-    'parser:not-an-operator':
-        'Name "{name}" is not an operator.',
     'parser:undeclared-operator':
         'Operator "{name}" has not been declared.',
-    'parser:operator-already-exists':
-        'Operator "{name}" has already been declared before.',
     'parser:cannot-parse-expression':
         'Cannot parse expression.',
     'parser:operator-part-is-not-a-variable':
         '"{name}" is part of an operator and cannot be used as a variable.',
     'parser:must-be-binary-operator':
         'Operator "{name}" should be binary to be declared associative.',
+
     'typechecker:data-lhs-arg-variable':
         'Parameter of a datatype should be a variable, but got {got}.',
     'typechecker:data-lhs-type-variable':
@@ -69,6 +73,12 @@ E_MESSAGES = {
         'instance of "{type_name}".',
     'typechecker:kinds-do-not-unify':
         'Kinds "{kind1}" and "{kind2}" do not unify.',
+    'typechecker:value-already-defined':
+        'Value "{name}" has already been defined before.',
+    'typechecker:declaration-head-is-not-variable':
+        'Head of declaration should be a variable, but found: {head}',
+    'typechecker:name-declared-but-not-defined':
+        'Name {name} is declared but not defined.',
 }
 
 class LangException(Exception):
