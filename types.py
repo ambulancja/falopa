@@ -1,5 +1,5 @@
 
-class Type(object):
+class Type:
 
     def __init__(self, attributes, **kwargs):
         assert sorted(kwargs.keys()) == sorted(attributes)

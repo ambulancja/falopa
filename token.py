@@ -23,7 +23,7 @@ INFIXR = 'INFIXR'
 UNDERSCORE = 'UNDERSCORE'
 WHERE = 'WHERE'
 
-class Token(object):
+class Token:
 
     def __init__(self, type, value, position):
         self._type = type

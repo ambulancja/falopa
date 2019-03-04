@@ -28,7 +28,7 @@ def operator_to_parts(name):
 def operator_from_parts(name):
     return ''.join([('_' if part == '' else part) for part in name])
 
-class Lexer(object):
+class Lexer:
 
     def __init__(self, source, filename='...'):
         self._scanner = scanner.Scanner(source, filename)

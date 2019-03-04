@@ -1,5 +1,5 @@
 
-class Scanner(object):
+class Scanner:
 
     def __init__(self, source='', filename='...', index=0, line=1, col=0):
         self._source = source

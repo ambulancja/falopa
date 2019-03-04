@@ -7,7 +7,7 @@ import syntax
 
 DEFAULT_PRECEDENCE = 200
 
-class PrecedenceLevel(object):
+class PrecedenceLevel:
 
     def __init__(self, fixity, precedence):
         self._fixity = fixity
@@ -36,7 +36,7 @@ def is_binary_operator(name):
        and parts[1] != '' \
        and parts[2] == ''
 
-class PrecedenceTable(object):
+class PrecedenceTable:
 
     def __init__(self):
         self._table = {}
@@ -115,7 +115,7 @@ class PrecedenceTable(object):
                 **args
               )
 
-class Parser(object):
+class Parser:
 
     def __init__(self, source, filename='...'):
         self._token_stream = lexer.Lexer(source, filename=filename).tokens()

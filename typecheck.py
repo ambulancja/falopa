@@ -14,7 +14,7 @@ def primitive_types():
         )
     ]
 
-class Environment(object):
+class Environment:
 
     def __init__(self):
         self._ribs = [{}]
@@ -47,7 +47,7 @@ class Environment(object):
     def close_scope(self):
         self._ribs.pop()
 
-class TypeChecker(object):
+class TypeChecker:
 
     def __init__(self):
         self._typenv = Environment()

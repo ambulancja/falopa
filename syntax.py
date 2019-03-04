@@ -1,5 +1,5 @@
 
-class AST(object):
+class AST:
 
     def __init__(self, attributes, **kwargs):
         if 'position' in kwargs:
