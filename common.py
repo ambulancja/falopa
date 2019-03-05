@@ -20,6 +20,14 @@ def is_number(str):
 def is_operator(str):
     return '_' in str
 
+NEXT_INDEX = 0
+
+def fresh_index():
+    global NEXT_INDEX
+    index = NEXT_INDEX
+    NEXT_INDEX += 1
+    return index
+
 E_STAGES = {
     'lexer': 'Lexical error near {position}',
     'parser': 'Parse error near {position}',

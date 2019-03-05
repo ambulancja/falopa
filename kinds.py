@@ -1,3 +1,4 @@
+import common
 
 class Type:
 
@@ -50,19 +51,11 @@ class Fun(Type):
     def free_metavars(self):
         return self.domain.free_metavars() | self.codomain.free_metavars()
 
-NEXT_INDEX = 0
-
-def fresh_index():
-    global NEXT_INDEX
-    index = NEXT_INDEX
-    NEXT_INDEX += 1
-    return index
-
 class Metavar(Type):
 
     def __init__(self, prefix='x'):
         Type.__init__(self, ['prefix', 'index'],
-                            prefix=prefix, index=fresh_index())
+                            prefix=prefix, index=common.fresh_index())
         self._indirection = None
 
     def __repr__(self):

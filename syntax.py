@@ -1,3 +1,4 @@
+import common
 import lexer
 
 class AST:
@@ -212,6 +213,13 @@ class Variable(AST):
     def is_atom(self):
         return True
 
+def fresh_variable(prefix='x', position=None):
+    return Variable(name='{prefix}.{index}'.format(
+                            prefix=prefix,
+                            index=common.fresh_index(),
+                            position=position,
+                         ))
+
 class Application(AST):
 
     def __init__(self, **kwargs):
@@ -270,6 +278,25 @@ class Application(AST):
         parts.append(res.show())
         return ' → '.join(parts)
 
+class Lambda(AST):
+
+    def __init__(self, **kwargs):
+        AST.__init__(self, ['var', 'body'], **kwargs)
+
+    def free_variables(self):
+        return self.body.free_variables() - set([self.var])
+
+    def show(self):
+        return 'λ {var} . {body}'.format(
+                 var=self.var,
+                 body=self.body.show()
+               )
+
+def lambda_(vars, body):
+    for var in vars:
+        body = Lambda(var=var, body=body, position=body.position)
+    return body
+
 class Let(AST):
 
     def __init__(self, **kwargs):
@@ -301,7 +328,7 @@ class Forall(AST):
         return self.body.free_variables() - set([self.var])
 
     def show(self):
-        return '∀{var}. {body}'.format(
+        return '∀ {var} . {body}'.format(
                  var=self.var,
                  body=self.body.show()
                )
@@ -311,21 +338,11 @@ def forall(vars, expr):
         expr = Forall(var=var, body=expr, position=expr.position)
     return expr
 
-# Metavariables
-
-NEXT_INDEX = 0
-
-def fresh_index():
-    global NEXT_INDEX
-    index = NEXT_INDEX
-    NEXT_INDEX += 1
-    return index
-
 class Metavar(AST):
 
     def __init__(self, prefix='x'):
         AST.__init__(self, ['prefix', 'index'],
-                            prefix=prefix, index=fresh_index())
+                            prefix=prefix, index=common.fresh_index())
         self._indirection = None
 
     def is_metavar(self):

@@ -204,26 +204,25 @@ class TypeChecker:
                        name=missing.pop(),
                        position=expr.position)
 
-        for decl in expr.declarations:
-            if decl.is_definition():
-                self.desugar_definition(decl)
-                # TODO: desugar all the definitions into a single one
+        for name in definitions:
+            desugared = self.desugar_definitions(name, definitions[name])
+            print('Desugared: {d}'.format(d=desugared.show()))
+            # TODO: desugar all the definitions into a single one
 
         ## DEBUG
-        print()
-        for rib in self._env._ribs:
-            for k, v in rib.items():
-                print('{k} : {v}'.format(k=k, v=v.show()))
-                print()
+        #print()
+        #for rib in self._env._ribs:
+        #    for k, v in rib.items():
+        #        print('{k} : {v}'.format(k=k, v=v.show()))
+        #        print()
         ## END DEBUG
 
         ## DEBUG
-        for name in defined_names:
-            print(name)
-            for decl in definitions[name]:
-                print('  {decl}'.format(decl=decl.show()))
-            print()
-            # TODO: check where clause
+        #for name in defined_names:
+        #    print(name)
+        #    for decl in definitions[name]:
+        #        print('  {decl}'.format(decl=decl.show()))
+        #    print()
         ## END DEBUG
 
         # TODO: check types
@@ -239,8 +238,23 @@ class TypeChecker:
         self._typenv.close_scope()
         self._env.define(decl.name, closed_type)
 
-    def desugar_definition(self, decl):
-        pass
+    def desugar_definitions(self, name, decls):
+        position = decls[0].position
+        alternatives = []
+        for decl in decls:
+            args = decl.lhs.application_args()
+            body = decl.rhs
+            params = [
+              syntax.fresh_variable(position=position) for arg in args
+            ]
+            # TODO: unify params with args
+            # TODO: check where clause
+            alternatives.append(syntax.lambda_([p.name for p in params], body))
+        return syntax.Definition(lhs=syntax.Variable(name=name,
+                                                     position=position),
+                                 rhs=alternatives[0], # TODO: sum alternatives
+                                 where=[],
+                                 position=position)
 
     def fail(self, msg, **args):
         raise common.LangException(
