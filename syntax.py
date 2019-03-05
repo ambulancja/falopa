@@ -374,7 +374,12 @@ class Let(AST):
         free_vars |= self.body.free_vars()
 
     def show(self):
-        return repr(self) ## TODO
+        return 'let\n' + \
+               '\n'.join([
+                 common.indent(decl.show(), 4)
+                   for decl in self.declarations
+               ]) + '\n in\n' + \
+               common.indent(self.body.show(), 4)
 
 # Only at the type level
 class Forall(AST):

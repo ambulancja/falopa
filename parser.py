@@ -179,15 +179,16 @@ class Parser:
               (len(status) > 0 and status[-1] == '')
             )
             if must_read_part:
-                status.append(tokval)
                 if not self.is_operator_part() or \
-                   not self._prectable.is_status_prefix_in_level(level, status):
-                    if len(status) == 2:
-                        status.pop()
+                   not self._prectable.is_status_prefix_in_level(
+                         level,
+                         status + [tokval]):
+                    if len(status) == 1:
                         break
                     else:
                         self.fail('expected-operator-part',
                                   status=lexer.operator_from_parts(status))
+                status.append(tokval)
                 self.next_token()
             else:
                 status.append('')

@@ -168,15 +168,18 @@ class TypeChecker:
         else:
             return False
 
+    # Returns a desugared expression
     def check_expr(self, expr):
         if expr.is_let():
-            self.check_let(expr)
+            return self.check_let(expr)
         else:
-            print('KE')
+            return expr  ### TODO
 
     def check_let(self, expr):
         # Check kinds and extend environment
         # to allow for recursive definitions.
+        desugared_declarations = []
+
         declared_names = set()
         definitions = {}
         self._env.open_scope()
@@ -184,6 +187,7 @@ class TypeChecker:
             if decl.is_type_declaration():
                 self.check_type_declaration(decl)
                 declared_names.add(decl.name)
+                desugared_declarations.append(decl)
             elif decl.is_definition():
                 head = decl.lhs.application_head()
                 if not head.is_variable():
@@ -207,6 +211,7 @@ class TypeChecker:
 
         for name in definitions:
             desugared = self.desugar_definitions(name, definitions[name])
+            desugared_declarations.append(desugared)
             print('Desugared:')
             print('  {d}'.format(d=desugared.show()))
             # TODO: desugar all the definitions into a single one
@@ -227,8 +232,12 @@ class TypeChecker:
         #    print()
         ## END DEBUG
 
-        # TODO: check types
+        desugared_body = self.check_expr(expr.body)
+
         self._env.close_scope()
+        return syntax.Let(declarations=desugared_declarations,
+                          body=desugared_body,
+                          position=expr.position)
 
     def check_type_declaration(self, decl):
         if self._env.is_locally_defined(decl.name):
@@ -254,18 +263,25 @@ class TypeChecker:
             for var in syntax.free_variables_list(patterns):
                 if not self._env.is_defined(var):
                     fvs.add(var)
-            # TODO: force binding by prefixing a variable with .
+            # TODO: force binding by prefixing a variable with "."
 
-            # TODO: check where clause
+            if len(decl.where) == 0:
+                desugared_body_with_where_clauses = self.check_expr(body)
+            else:
+                desugared_body_with_where_clauses = self.check_let(
+                  syntax.Let(declarations=decl.where, body=body)
+                )
+
+            # TODO: desugar where clause
             alternative = syntax.lambda_many(
                 [param.name for param in params],
                 syntax.fresh_many(
                     fvs,
                     syntax.sequence_many1(
-                        [syntax.unify(param, pattern)
-                            for param, pattern in zip(params, patterns)
-                        ],
-                        body
+                      [syntax.unify(param, pattern)
+                        for param, pattern in zip(params, patterns)
+                      ],
+                      desugared_body_with_where_clauses
                     )
                 )
             )

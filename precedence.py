@@ -24,6 +24,9 @@ class PrecedenceLevel:
     def operators(self):
         return self._operators
 
+    def __repr__(self):
+        return str(self._operators)
+
 def is_prefix(list1, list2):
     return len(list1) <= len(list2) and list2[:len(list1)] == list1
 

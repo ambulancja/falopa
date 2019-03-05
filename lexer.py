@@ -23,7 +23,17 @@ OFFSIDE_KEYWORDS = {
 }
 
 def operator_to_parts(name):
-    return name.split('_')
+    parts = name.strip('_').split('_')
+    result = []
+    if name[0] == '_':
+        result.append('')
+    result.append(parts.pop(0))
+    while len(parts) > 0:
+        result.append('')
+        result.append(parts.pop(0))
+    if name[-1] == '_':
+        result.append('')
+    return result
 
 def operator_from_parts(name):
     return ''.join([('_' if part == '' else part) for part in name])
