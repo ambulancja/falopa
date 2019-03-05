@@ -60,7 +60,7 @@ class AST:
         return self.is_application() and \
                self.fun.is_application() and \
                self.fun.fun.is_variable() and \
-               self.fun.fun.name == '_→_'
+               self.fun.fun.name == common.OP_ARROW
 
     def application_head(self):
         expr = self
@@ -276,7 +276,45 @@ class Application(AST):
             parts.append(res.fun.arg.showp())
             res = res.arg
         parts.append(res.show())
-        return ' → '.join(parts)
+        return common.OP_ARROW.join(parts)
+
+def binop(op, e1, e2, position=None):
+    if position is None:
+        position = e1.position
+    return Application(
+             fun=Application(
+               fun=Variable(name=op, position=position),
+               arg=e1,
+               position=position
+             ),
+             arg=e2,
+             position=position
+           )
+
+def unify(e1, e2, position=None):
+    return binop(common.OP_UNIFY, e1, e2, position=position)
+
+def sequence(e1, e2, position=None):
+    return binop(common.OP_SEQUENCE, e1, e2, position=position)
+
+def alternative(e1, e2, position=None):
+    return binop(common.OP_ALTERNATIVE, e1, e2, position=position)
+
+def sequence_many1(es, body, position=None):
+    if position is None:
+        position = body.position
+    for e in reversed(es):
+        body = sequence(e, body, position=position)
+    return body
+
+def alternative_many(es, position=None):
+    assert len(es) > 0
+    if position is None:
+        position = es[0].position
+    body = es[-1]
+    for e in reversed(es[:-1]):
+        body = alternative(e, body, position=position)
+    return body
 
 class Lambda(AST):
 
@@ -292,9 +330,32 @@ class Lambda(AST):
                  body=self.body.show()
                )
 
-def lambda_(vars, body):
+def lambda_many(vars, body, position=None):
+    if position is None:
+        position = body.position
     for var in vars:
-        body = Lambda(var=var, body=body, position=body.position)
+        body = Lambda(var=var, body=body, position=position)
+    return body
+
+class Fresh(AST):
+
+    def __init__(self, **kwargs):
+        AST.__init__(self, ['var', 'body'], **kwargs)
+
+    def free_variables(self):
+        return self.body.free_variables() - set([self.var])
+
+    def show(self):
+        return '? {var} . {body}'.format(
+                 var=self.var,
+                 body=self.body.show()
+               )
+
+def fresh_many(vars, body, position=None):
+    if position is None:
+        position = body.position
+    for var in vars:
+        body = Fresh(var=var, body=body, position=position)
     return body
 
 class Let(AST):
@@ -333,9 +394,11 @@ class Forall(AST):
                  body=self.body.show()
                )
 
-def forall(vars, expr):
+def forall_many(vars, expr, position=None):
+    if position is None:
+        position = expr.position
     for var in vars:
-        expr = Forall(var=var, body=expr, position=expr.position)
+        expr = Forall(var=var, body=expr, position=position)
     return expr
 
 class Metavar(AST):
@@ -370,4 +433,10 @@ class Metavar(AST):
                  prefix=self.prefix,
                  index=self.index,
                )
+
+def free_variables_list(es):
+    fvs = set()
+    for e in es:
+        fvs |= e.free_variables()
+    return fvs
 

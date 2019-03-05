@@ -1,4 +1,9 @@
 
+OP_ARROW = '_→_'
+OP_UNIFY = '_==_'
+OP_ALTERNATIVE = '_<>_'
+OP_SEQUENCE = '_>>_'
+
 def indent(text, n=2):
     return '\n'.join([' ' * n + line for line in text.split('\n')])
 

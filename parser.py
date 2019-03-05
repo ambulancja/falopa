@@ -19,9 +19,10 @@ class Parser:
         self.next_token()
 
         # Primitive operators
-        self.declare_operator(token.INFIXR, 50, '_→_')
-        self.declare_operator(token.INFIXR, 100, '_<>_')
-        self.declare_operator(token.INFIXR, 150, '_>>_')
+        self.declare_operator(token.INFIXR, 50, common.OP_ARROW)
+        self.declare_operator(token.INFIXR, 100, common.OP_UNIFY)
+        self.declare_operator(token.INFIXR, 150, common.OP_ALTERNATIVE)
+        self.declare_operator(token.INFIXR, 200, common.OP_SEQUENCE)
 
     def program(self):
         position = self.current_position()

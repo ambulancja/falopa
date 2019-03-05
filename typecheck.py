@@ -4,7 +4,8 @@ import kinds
 
 def primitive_types():
     return [
-        ('_→_', kinds.Fun(
+        (common.OP_ARROW,
+                kinds.Fun(
                   domain=kinds.Set(),
                   codomain=kinds.Fun(
                     domain=kinds.Set(),
@@ -113,7 +114,7 @@ class TypeChecker:
         for var in type.free_variables():
             if not self._typenv.is_defined(var):
                 free_vars.add(var)
-        return syntax.forall(free_vars, type)
+        return syntax.forall_many(free_vars, type)
 
     def check_type_has_atomic_kind(self, type):
         kind = self.check_type_kind(type)
@@ -127,7 +128,7 @@ class TypeChecker:
  
     def check_type_kind(self, expr):
         # Possible types are:
-        #   variables     (including _→_)
+        #   variables (including the arrow operator)
         #   applications
         #   forall's
         if expr.is_variable():
@@ -206,7 +207,8 @@ class TypeChecker:
 
         for name in definitions:
             desugared = self.desugar_definitions(name, definitions[name])
-            print('Desugared: {d}'.format(d=desugared.show()))
+            print('Desugared:')
+            print('  {d}'.format(d=desugared.show()))
             # TODO: desugar all the definitions into a single one
 
         ## DEBUG
@@ -242,19 +244,39 @@ class TypeChecker:
         position = decls[0].position
         alternatives = []
         for decl in decls:
-            args = decl.lhs.application_args()
+            patterns = decl.lhs.application_args()
             body = decl.rhs
             params = [
-              syntax.fresh_variable(position=position) for arg in args
+              syntax.fresh_variable(position=position) for pat in patterns
             ]
-            # TODO: unify params with args
+            
+            fvs = set()
+            for var in syntax.free_variables_list(patterns):
+                if not self._env.is_defined(var):
+                    fvs.add(var)
+            # TODO: force binding by prefixing a variable with .
+
             # TODO: check where clause
-            alternatives.append(syntax.lambda_([p.name for p in params], body))
-        return syntax.Definition(lhs=syntax.Variable(name=name,
-                                                     position=position),
-                                 rhs=alternatives[0], # TODO: sum alternatives
-                                 where=[],
-                                 position=position)
+            alternative = syntax.lambda_many(
+                [param.name for param in params],
+                syntax.fresh_many(
+                    fvs,
+                    syntax.sequence_many1(
+                        [syntax.unify(param, pattern)
+                            for param, pattern in zip(params, patterns)
+                        ],
+                        body
+                    )
+                )
+            )
+            alternatives.append(alternative)
+        return syntax.Definition(
+                 lhs=syntax.Variable(name=name,
+                                     position=position),
+                 rhs=syntax.alternative_many(alternatives,
+                                             position=position),
+                 where=[],
+                 position=position)
 
     def fail(self, msg, **args):
         raise common.LangException(
