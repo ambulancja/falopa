@@ -4,6 +4,8 @@ OP_UNIFY = '_==_'
 OP_ALTERNATIVE = '_<>_'
 OP_SEQUENCE = '_>>_'
 
+TYPE_INT = 'Int'
+
 def indent(text, n=2):
     return '\n'.join([' ' * n + line for line in text.split('\n')])
 
@@ -55,9 +57,9 @@ E_MESSAGES = {
         'Operator "{name}" has already been declared before.',
 
     'parser:token-mismatch':
-        'Expected {expected} but got {got}.',
+        'Expected {expected}, but got {got}.',
     'parser:expected-atom':
-        'Expected an atom but got {got}.',
+        'Expected an atom, but got {got}.',
     'parser:expected-operator-part':
         'Expected part of an operator. Status: {status}.',
     'parser:undeclared-operator':
@@ -76,7 +78,7 @@ E_MESSAGES = {
     'typechecker:data-lhs-type-already-defined':
         'Type "{name}" has already been defined before.',
     'typechecker:expected-a-type':
-        'Expected a type, but got {got}.',
+        'Expected a type, but got "{got}".',
     'typechecker:undefined-type':
         'Type "{name}" is not defined.',
     'typechecker:expected-atomic-kind':
@@ -97,6 +99,12 @@ E_MESSAGES = {
     'typechecker:equations-arity-mismatch':
         'All equations defining "{name}" should have the same ' +
         'number of parameters.',
+    'typechecker:unbound-variable':
+        'Unbound variable "{name}".',
+    'typechecker:types-do-not-unify':
+        'Types "{type1}" and "{type2}" do not unify.',
+    'typechecker:malformed-type':
+        'Malformed type "{type}".',
 }
 
 class LangException(Exception):
@@ -114,4 +122,13 @@ class LangException(Exception):
             E_STAGES[self._stage].format(**self._args),
             E_MESSAGES[self._stage + ':' + self._message].format(**self._args)
         ])
+
+class UnificationFailure(Exception):
+
+    def __init__(self, reason, **kwargs):
+        self.reason = reason
+        self.kwargs = {}
+        for attr in kwargs:
+            setattr(self, attr, kwargs[attr])
+            self.kwargs[attr] = kwargs[attr]
 

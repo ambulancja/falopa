@@ -41,7 +41,8 @@ class Parser:
         return syntax.Program(
                  data_declarations=data_declarations,
                  body=syntax.Let(declarations=value_declarations,
-                                 body=syntax.Variable(name="main"),
+                                 body=syntax.Variable(name="main",
+                                                      position=position),
                                  position=position),
                  position=position,
                )
@@ -278,7 +279,8 @@ class Parser:
             return syntax.Variable(name=self.parse_id(), position=position)
         elif self._token.type() == token.UNDERSCORE:
             self.next_token()
-            return syntax.Wildcard(position=position)
+            v = syntax.fresh_variable(prefix='_', position=position)
+            return syntax.Fresh(var=v.name, body=v, position=position)
         self.fail('expected-atom', got=self._token)
 
     ##

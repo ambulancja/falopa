@@ -12,7 +12,23 @@ def primitive_types():
                     codomain=kinds.Set()
                   )
                 )
-        )
+        ),
+        (common.TYPE_INT, kinds.Set()),
+    ]
+
+def primitive_values():
+    return [
+        (common.OP_ALTERNATIVE,
+            syntax.Forall(
+                var='a',
+                body=syntax.function(
+                    syntax.Variable(name='a', position='U'),
+                    syntax.function(
+                        syntax.Variable(name='a', position='U'),
+                        syntax.Variable(name='a', position='U'),
+                        position='U'),
+                    position='U'),
+                position='U')),
     ]
 
 class Environment:
@@ -48,6 +64,15 @@ class Environment:
     def close_scope(self):
         self._ribs.pop()
 
+    def current_scope(self):
+        return self._ribs[-1]
+
+    def all_values_in_parent_scopes(self):
+        values = set()
+        for rib in self._ribs[:-1]:
+            values |= set(rib.values())
+        return values
+
 class TypeChecker:
 
     def __init__(self):
@@ -55,6 +80,8 @@ class TypeChecker:
         for type_name, kind in primitive_types():
             self._typenv.define(type_name, kind)
         self._env = Environment()
+        for value_name, type in primitive_values():
+            self._env.define(value_name, type)
 
     def check_program(self, program):
         # Check that data declaration LHSs are well-formed.
@@ -120,7 +147,7 @@ class TypeChecker:
         kind = self.check_type_kind(type)
         try:
             kinds.unify(kind, kinds.Set())
-        except kinds.UnificationFailure:
+        except common.UnificationFailure:
             self.fail('expected-atomic-kind',
                       type=type,
                       kind=kind,
@@ -143,17 +170,17 @@ class TypeChecker:
             kres = kinds.Metavar(prefix='t')
             try:
                 kinds.unify(kfun, kinds.Fun(domain=karg, codomain=kres))
-            except kinds.UnificationFailure as e:
+            except common.UnificationFailure as e:
                 self.fail('kinds-do-not-unify',
-                          kind1=e.type1,
-                          kind2=e.type2,
+                          kind1=e.kind1,
+                          kind2=e.kind2,
                           position=expr.position)
             return kres
         elif expr.is_forall():
             self._typenv.define(expr.var, kinds.Metavar(prefix='t'))
             return self.check_type_kind(expr.body)
         self.fail('expected-a-type',
-                  got=expr,
+                  got=expr.show(),
                   position=expr.position)
 
     def constructor_returns_instance(self, type_name, expr):
@@ -172,8 +199,50 @@ class TypeChecker:
     def check_expr(self, expr):
         if expr.is_let():
             return self.check_let(expr)
+        elif expr.is_variable():
+            return self.check_variable(expr)
+        elif expr.is_application():
+            return self.check_application(expr)
+        elif expr.is_fresh():
+            return self.check_fresh(expr)
+        elif expr.is_integer_constant():
+            return self.check_integer_constant(expr)
         else:
-            return expr  ### TODO
+            print(expr)
+            raise Exception('NOT IMPLEMENTED')
+            return 'TODO:TYPE' , expr  ### TODO
+
+    def check_variable(self, expr):
+        if not self._env.is_defined(expr.name):
+            self.fail('unbound-variable',
+                      name=expr.name,
+                      position=expr.position)
+        var_type = self._env.value(expr.name)
+        while var_type.is_forall():
+            var_type = var_type.forall_eliminate()
+        return var_type, expr
+
+    def check_application(self, expr):
+        t_fun, e_fun = self.check_expr(expr.fun)
+        t_arg, e_arg = self.check_expr(expr.arg)
+        t_res = syntax.Metavar(prefix='t', position=expr.position)
+        self.unify_types(t_fun, syntax.function(t_arg, t_res))
+        return (t_res,
+                syntax.Application(fun=e_fun, arg=e_arg,
+                                   position=expr.position))
+
+    def check_fresh(self, expr):
+        self._env.open_scope()
+        self._env.define(expr.var, syntax.Metavar(prefix='t',
+                                                  position=expr.position))
+        t_body, e_body = self.check_expr(expr.body)
+        self._env.close_scope()
+        return (t_body,
+                syntax.Fresh(var=expr.var, body=e_body,
+                             position=expr.position))
+
+    def check_integer_constant(self, expr):
+        return syntax.primitive_type_int(), expr
 
     def check_let(self, expr):
         # Check kinds and extend environment
@@ -182,12 +251,15 @@ class TypeChecker:
 
         declared_names = set()
         definitions = {}
+        definition_keys = []
         self._env.open_scope()
+        type_declarations = []
         for decl in expr.declarations:
             if decl.is_type_declaration():
-                self.check_type_declaration(decl)
+                decl = self.check_type_declaration(decl)
                 declared_names.add(decl.name)
                 desugared_declarations.append(decl)
+                type_declarations.append(decl)
             elif decl.is_definition():
                 head = decl.lhs.application_head()
                 if not head.is_variable():
@@ -195,10 +267,14 @@ class TypeChecker:
                                head=head,
                                position=decl.position)
                 declared_names.add(head.name)
-                definitions[head.name] = definitions.get(head.name, [])
+                if head.name not in definitions:
+                    definition_keys.append(head.name)
+                    definitions[head.name] = []
                 definitions[head.name].append(decl)
                 if not self._env.is_locally_defined(head.name):
-                    self._env.define(head.name, syntax.Metavar(prefix='t'))
+                    self._env.define(head.name,
+                                     syntax.Metavar(prefix='t',
+                                                    position=decl.position))
             else:
                 raise Exception('Check for declaration not implemented.')
 
@@ -209,35 +285,31 @@ class TypeChecker:
                        name=missing.pop(),
                        position=expr.position)
 
-        for name in definitions:
-            desugared = self.desugar_definitions(name, definitions[name])
+        for name in definition_keys:
+            desugared = self.desugar_definition(name, definitions[name])
             desugared_declarations.append(desugared)
-            print('Desugared:')
-            print('  {d}'.format(d=desugared.show()))
-            # TODO: desugar all the definitions into a single one
+
+        self.generalize_types_in_current_scope()
+        self.check_declared_instantiate_real(type_declarations)
+
+        body_type, desugared_body = self.check_expr(expr.body)
 
         ## DEBUG
-        #print()
-        #for rib in self._env._ribs:
-        #    for k, v in rib.items():
-        #        print('{k} : {v}'.format(k=k, v=v.show()))
-        #        print()
+        for decl in desugared_declarations:
+            if decl.is_type_declaration():
+                continue
+            print()
+            print('{name} : {type}'.format(
+                    name=decl.lhs.name,
+                    type=self._env.value(decl.lhs.name).show()))
+            print('{d}'.format(d=decl.show()))
         ## END DEBUG
-
-        ## DEBUG
-        #for name in defined_names:
-        #    print(name)
-        #    for decl in definitions[name]:
-        #        print('  {decl}'.format(decl=decl.show()))
-        #    print()
-        ## END DEBUG
-
-        desugared_body = self.check_expr(expr.body)
 
         self._env.close_scope()
-        return syntax.Let(declarations=desugared_declarations,
-                          body=desugared_body,
-                          position=expr.position)
+        return (body_type,
+                syntax.Let(declarations=desugared_declarations,
+                           body=desugared_body,
+                           position=expr.position))
 
     def check_type_declaration(self, decl):
         if self._env.is_locally_defined(decl.name):
@@ -247,60 +319,123 @@ class TypeChecker:
         self._typenv.open_scope()
         self.check_type_has_atomic_kind(closed_type)
         self._typenv.close_scope()
-        self._env.define(decl.name, closed_type)
+        return syntax.TypeDeclaration(name=decl.name,
+                                      type=closed_type,
+                                      position=decl.position)
 
-    def desugar_definitions(self, name, decls):
-        position = decls[0].position
+    def desugar_definition(self, name, equations):
+        position = equations[0].position
         alternatives = []
 
-        patterns_0 = decls[0].lhs.application_args()
-        params = [
-          syntax.fresh_variable(position=position)
-            for pat in patterns_0
-        ]
+        patterns_0 = equations[0].lhs.application_args()
+        params = [syntax.fresh_variable(position=position)
+                    for pat in patterns_0]
 
-        for decl in decls:
-            patterns = decl.lhs.application_args()
-            body = decl.rhs
+        definition_type = self._env.value(name)
 
-            if len(patterns) != len(params):
-                self.fail('equations-arity-mismatch',
-                          name=name,
-                          position=position)
+        self._env.open_scope() # Definition scope
 
-            fvs = set()
-            for var in syntax.free_variables_list(patterns):
-                if not self._env.is_defined(var):
-                    fvs.add(var)
-            # TODO: force binding by prefixing a variable with "."
+        param_types = []
+        for param in params:
+            param_type = syntax.Metavar(prefix='t', position=position)
+            self._env.define(param, param_type)
+            param_types.append(param_type)
+        result_type = syntax.Metavar(prefix='t', position=position)
 
-            if len(decl.where) == 0:
-                desugared_body_with_where_clauses = self.check_expr(body)
-            else:
-                desugared_body_with_where_clauses = self.check_let(
-                  syntax.Let(declarations=decl.where, body=body)
-                )
-            alternative = syntax.fresh_many(
-                            fvs,
-                            syntax.sequence_many1(
-                              [syntax.unify(param, pattern)
-                                for param, pattern in zip(params, patterns)
-                              ],
-                              desugared_body_with_where_clauses
-                            )
-                          )
-            alternatives.append(alternative)
+        self.unify_types(
+          definition_type,
+          syntax.function_many(param_types, result_type)
+        )
+
+        for equation in equations:
+            alternatives.append(
+              self.desugar_equation(params, param_types, result_type, equation)
+            )
+
         rhs = syntax.lambda_many(
                 [param.name for param in params],
                 syntax.alternative_many(alternatives, position=position),
                 position=position,
               )
+        self._env.close_scope() # Definition scope
         return syntax.Definition(
                  lhs=syntax.Variable(name=name,
                                      position=position),
                  rhs=rhs,
                  where=[],
                  position=position)
+
+    def desugar_equation(self, params, param_types, result_type, equation):
+        position = equation.position
+        patterns = equation.lhs.application_args()
+        body = equation.rhs
+        if len(patterns) != len(params):
+            self.fail('equations-arity-mismatch',
+                      name=name,
+                      position=position)
+        self._env.open_scope() # Equation scope
+        fvs = set()
+        for var in syntax.free_variables_list(patterns):
+            if not self._env.is_defined(var):
+                fvs.add(var)
+                self._env.define(var, syntax.Metavar(prefix="t",
+                                                     position=position))
+
+        # TODO: force binding by prefixing a variable with "."
+
+        if len(equation.where) == 0:
+            d_type, d_body = self.check_expr(body)
+        else:
+            d_type, d_body = self.check_let(
+              syntax.Let(declarations=equation.where, body=body,
+                         position=position)
+            )
+        self.unify_types(d_type, result_type)
+
+        unif_goals = []
+        for param, pattern, t_param in zip(params, patterns, param_types):
+            t_pattern, e_pattern = self.check_expr(pattern)
+            self.unify_types(t_param, t_pattern)
+            unif_goals.append(syntax.unify(param, e_pattern))
+
+        alternative = syntax.fresh_many(
+                        fvs,
+                        syntax.sequence_many1(unif_goals, d_body)
+                      )
+        self._env.close_scope() # Equation scope
+        return alternative
+
+    def generalize_types_in_current_scope(self):
+        forbidden_metavars = set()
+        for value in self._env.all_values_in_parent_scopes():
+            forbidden_metavars |= value.free_metavars()
+        scope = self._env.current_scope()
+        for var in scope:
+            type = self._env.value(var)
+            generalized_metavars = type.free_metavars() - forbidden_metavars
+            for metavar in generalized_metavars:
+                type = type.forall_introduce(metavar)
+            self._env.define(var, type)
+
+    def check_declared_instantiate_real(self, type_declarations):
+        # Check that user-defined type declarations instantiate the
+        # actual type.
+        for decl in type_declarations:
+            user_type = decl.type
+            actual_type = self._env.value(decl.name)
+            while user_type.is_forall():
+                var = syntax.fresh_variable(user_type.var,
+                                            position=decl.position)
+                user_type = user_type.forall_eliminate(var)
+            while actual_type.is_forall():
+                actual_type = actual_type.forall_eliminate() # metavar
+            self.unify_types(actual_type, user_type)
+
+    def unify_types(self, t1, t2):
+        try:
+            syntax.unify_types(t1, t2)
+        except common.UnificationFailure as e:
+            self.fail(e.reason, position=t1.position, **e.kwargs)
 
     def fail(self, msg, **args):
         raise common.LangException(

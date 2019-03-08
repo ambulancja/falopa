@@ -15,7 +15,7 @@ def run(filename):
         checker.check_program(ast)
 
 def usage(program):
-    sys.stderr.write('Usage: {program} input.fa'.format(program=program))
+    sys.stderr.write('Usage: {program} input.fa\n'.format(program=program))
     sys.exit()
 
 def main(argv):

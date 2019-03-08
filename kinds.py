@@ -95,29 +95,24 @@ def fresh_kind(arity):
         kind = Fun(domain=Metavar(prefix='k'), codomain=kind)
     return kind
 
-class UnificationFailure(Exception):
-
-    def __init__(self, reason, **kwargs):
-        self.reason = reason
-        for attr in kwargs:
-            setattr(self, attr, kwargs[attr])
-
-def unify(t1, t2):
-    t1 = t1.representative()
-    t2 = t2.representative()
-    if t1.is_metavar():
-        if t1 == t2:
+def unify(k1, k2):
+    k1 = k1.representative()
+    k2 = k2.representative()
+    if k1.is_metavar():
+        if k1 == k2:
             return
-        if t1 in t2.free_metavars():
-            raise UnificationFailure('occurs-check', type1=t1, type2=t2)
-        t1.instantiate(t2)
-    elif t2.is_metavar():
-        unify(t2, t1)
-    elif t1.is_set() and t2.is_set():
+        if k1 in k2.free_metavars():
+            raise common.UnificationFailure('kind-occurs-check',
+                                            kind1=k1, kind2=k2)
+        k1.instantiate(k2)
+    elif k2.is_metavar():
+        unify(k2, k1)
+    elif k1.is_set() and k2.is_set():
         return
-    elif t1.is_fun() and t2.is_fun():
-        unify(t1.domain, t2.domain)
-        unify(t1.codomain, t2.codomain)
+    elif k1.is_fun() and k2.is_fun():
+        unify(k1.domain, k2.domain)
+        unify(k1.codomain, k2.codomain)
     else:
-        raise UnificationFailure('types-do-not-unify', type1=t1, type2=t2)
+        raise common.UnificationFailure('kinds-do-not-unify',
+                                        kind1=k1, kind2=k2)
 

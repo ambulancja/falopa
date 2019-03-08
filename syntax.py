@@ -44,6 +44,12 @@ class AST:
     def is_variable(self):
         return False
 
+    def is_integer_constant(self):
+        return False
+
+    def is_fresh(self):
+        return False
+
     def is_let(self):
         return False
 
@@ -62,19 +68,40 @@ class AST:
                self.fun.fun.is_variable() and \
                self.fun.fun.name == common.OP_ARROW
 
+    def free_variables(self):
+        return set()
+
+    def free_metavars(self):
+        return set()
+
+    def forall_introduce(self, metavar):
+        var = fresh_variable(prefix=metavar.prefix, position=self.position)
+        return Forall(var=var.name,
+                      body=self.instantiate_metavar(metavar, var),
+                      position=self.position)
+
+    def representative(self):
+        return self
+
     def application_head(self):
-        expr = self
+        expr = self.representative()
         while expr.is_application():
-            expr = expr.fun
+            expr = expr.fun.representative()
         return expr
 
     def application_args(self):
-        expr = self
+        expr = self.representative()
         args = []
         while expr.is_application():
-            args.insert(0, expr.arg)
-            expr = expr.fun
+            args.insert(0, expr.arg.representative())
+            expr = expr.fun.representative()
         return args
+
+    def instantiate_type_variable(self, name, value):
+        return self
+
+    def instantiate_metavar(self, metavar, value):
+        return self
 
     def pprint(self, level=0):
         indent = ' ' * level
@@ -168,20 +195,6 @@ class Definition(AST):
 
 # Expressions
 
-class Wildcard(AST):
-
-    def __init__(self, **kwargs):
-        AST.__init__(self, [], **kwargs)
-
-    def free_variables(self):
-        return set()
-
-    def show(self):
-        return '_'
-
-    def is_atom(self):
-        return True
-
 class IntegerConstant(AST):
 
     def __init__(self, **kwargs):
@@ -190,10 +203,16 @@ class IntegerConstant(AST):
     def free_variables(self):
         return set()
 
+    def free_metavars(self):
+        return set()
+
     def show(self):
         return str(self.value)
 
     def is_atom(self):
+        return True
+
+    def is_integer_constant(self):
         return True
 
 class Variable(AST):
@@ -207,18 +226,32 @@ class Variable(AST):
     def free_variables(self):
         return set([self.name])
 
+    def free_metavars(self):
+        return set()
+
     def show(self):
         return self.name
 
     def is_atom(self):
         return True
 
+    def instantiate_type_variable(self, name, value):
+        if self.name == name:
+            return value
+        else:
+            return self
+
+    def instantiate_metavar(self, metavar, value):
+        return self
+
+def primitive_type_int():
+    return Variable(name=common.TYPE_INT, position=None)
+
 def fresh_variable(prefix='x', position=None):
     return Variable(name='{prefix}.{index}'.format(
                             prefix=prefix,
-                            index=common.fresh_index(),
-                            position=position,
-                         ))
+                            index=common.fresh_index()),
+                    position=position)
 
 class Application(AST):
 
@@ -230,6 +263,9 @@ class Application(AST):
 
     def free_variables(self):
         return self.fun.free_variables() | self.arg.free_variables()
+
+    def free_metavars(self):
+        return self.fun.free_metavars() | self.arg.free_metavars()
 
     def show(self):
         if self.is_arrow_type():
@@ -276,7 +312,40 @@ class Application(AST):
             parts.append(res.fun.arg.showp())
             res = res.arg
         parts.append(res.show())
-        return common.OP_ARROW.join(parts)
+        [_, arrow, _] = lexer.operator_to_parts(common.OP_ARROW)
+        return ' {arrow} '.format(arrow=arrow).join(parts)
+
+    def instantiate_type_variable(self, name, value):
+        return Application(
+                 fun=self.fun.instantiate_type_variable(name, value),
+                 arg=self.arg.instantiate_type_variable(name, value),
+                 position=self.position
+               )
+
+    def instantiate_metavar(self, metavar, value):
+        return Application(
+                 fun=self.fun.instantiate_metavar(metavar, value),
+                 arg=self.arg.instantiate_metavar(metavar, value),
+                 position=self.position
+               )
+
+def function(arg_type, result_type, position=None):
+    if position is None:
+        position = arg_type.position
+    return Application(
+             fun=Application(
+               fun=Variable(name=common.OP_ARROW, position=position),
+               arg=arg_type,
+               position=position
+             ),
+             arg=result_type,
+             position=position
+           )
+
+def function_many(arg_types, result_type, position=None):
+    for arg_type in reversed(arg_types):
+        result_type = function(arg_type, result_type, position=position)
+    return result_type
 
 def binop(op, e1, e2, position=None):
     if position is None:
@@ -345,6 +414,9 @@ class Fresh(AST):
     def free_variables(self):
         return self.body.free_variables() - set([self.var])
 
+    def is_fresh(self):
+        return True
+
     def show(self):
         return '? {var} . {body}'.format(
                  var=self.var,
@@ -390,13 +462,38 @@ class Forall(AST):
     def is_forall(self):
         return True
 
+    def forall_eliminate(self, value=None):
+        if value is None:
+            value = Metavar(prefix=self.var, position=self.position)
+        return self.body.instantiate_type_variable(self.var, value)
+
     def free_variables(self):
         return self.body.free_variables() - set([self.var])
+
+    def free_metavars(self):
+        return self.body.free_metavars()
 
     def show(self):
         return '∀ {var} . {body}'.format(
                  var=self.var,
                  body=self.body.show()
+               )
+
+    def instantiate_type_variable(self, name, value):
+        if self.var == name:
+            return self
+        else:
+            return Forall(
+                     var=self.var,
+                     body=self.body.instantiate_type_variable(name, value),
+                     position=self.position
+                   )
+
+    def instantiate_metavar(self, metavar, value):
+        return Forall(
+                 var=self.var,
+                 body=self.body.instantiate_metavar(metavar, value),
+                 position=self.position
                )
 
 def forall_many(vars, expr, position=None):
@@ -408,9 +505,10 @@ def forall_many(vars, expr, position=None):
 
 class Metavar(AST):
 
-    def __init__(self, prefix='x'):
+    def __init__(self, prefix='x', **kwargs):
         AST.__init__(self, ['prefix', 'index'],
-                            prefix=prefix, index=common.fresh_index())
+                           prefix=prefix, index=common.fresh_index(),
+                           **kwargs)
         self._indirection = None
 
     def is_metavar(self):
@@ -427,6 +525,26 @@ class Metavar(AST):
         assert self._indirection is None
         self._indirection = value
 
+    def instantiate_type_variable(self, name, value):
+        if self._indirection is None:
+            return self
+        else:
+            return self._indirection.instantiate_type_variable(name, value)
+
+    def instantiate_metavar(self, metavar, value):
+        if self == metavar:
+            return value
+        elif self._indirection is None:
+            return self
+        else:
+            return self._indirection.instantiate_metavar(metavar, value)
+
+    def free_variables(self):
+        if self._indirection is None:
+            return set()
+        else:
+            return self._indirection.free_variables()
+
     def free_metavars(self):
         if self._indirection is None:
             return set([self])
@@ -434,14 +552,52 @@ class Metavar(AST):
             return self._indirection.free_metavars()
 
     def show(self):
-        return '?{prefix}{index}'.format(
-                 prefix=self.prefix,
-                 index=self.index,
-               )
+        if self._indirection is None:
+            return '?{prefix}{index}'.format(
+                     prefix=self.prefix,
+                     index=self.index,
+                   )
+        else:
+            return self._indirection.show()
 
 def free_variables_list(es):
     fvs = set()
     for e in es:
         fvs |= e.free_variables()
     return fvs
+
+##
+
+def unify_types(t1, t2):
+    # Valid types are built using:
+    #   Variable
+    #   Application
+    #   Forall
+    #   Metavar
+    # Any other type expression is rejected.
+    t1 = t1.representative()
+    t2 = t2.representative()
+    if t1.is_metavar():
+        if t1 == t2:
+            return
+        # TODO: occurs check!
+        return t1.instantiate(t2)
+    elif t2.is_metavar():
+        return unify_types(t2, t1)
+
+    head1 = t1.application_head()
+    args1 = t1.application_args()
+    head2 = t2.application_head()
+    args2 = t2.application_args()
+    if not head1.is_variable():
+        raise common.UnificationFailure('malformed-type', type=t1.show())
+    if not head2.is_variable():
+        raise common.UnificationFailure('malformed-type', type=t2.show())
+    if head1.name != head2.name or len(args1) != len(args2):
+        raise common.UnificationFailure(
+                'types-do-not-unify',
+                type1=t1.show(),
+                type2=t2.show())
+    for s1, s2 in zip(args1, args2):
+        unify_types(s1, s2)
 

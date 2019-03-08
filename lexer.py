@@ -154,6 +154,7 @@ class Lexer:
             if self.match('{-'):
                 b += 1
             elif self.match('-}'):
+                self.next()
                 b -= 1
             self.next()
         if self._scanner.eof() and b > 0:
