@@ -252,13 +252,22 @@ class TypeChecker:
     def desugar_definitions(self, name, decls):
         position = decls[0].position
         alternatives = []
+
+        patterns_0 = decls[0].lhs.application_args()
+        params = [
+          syntax.fresh_variable(position=position)
+            for pat in patterns_0
+        ]
+
         for decl in decls:
             patterns = decl.lhs.application_args()
             body = decl.rhs
-            params = [
-              syntax.fresh_variable(position=position) for pat in patterns
-            ]
-            
+
+            if len(patterns) != len(params):
+                self.fail('equations-arity-mismatch',
+                          name=name,
+                          position=position)
+
             fvs = set()
             for var in syntax.free_variables_list(patterns):
                 if not self._env.is_defined(var):
@@ -271,26 +280,25 @@ class TypeChecker:
                 desugared_body_with_where_clauses = self.check_let(
                   syntax.Let(declarations=decl.where, body=body)
                 )
-
-            # TODO: desugar where clause
-            alternative = syntax.lambda_many(
-                [param.name for param in params],
-                syntax.fresh_many(
-                    fvs,
-                    syntax.sequence_many1(
-                      [syntax.unify(param, pattern)
-                        for param, pattern in zip(params, patterns)
-                      ],
-                      desugared_body_with_where_clauses
-                    )
-                )
-            )
+            alternative = syntax.fresh_many(
+                            fvs,
+                            syntax.sequence_many1(
+                              [syntax.unify(param, pattern)
+                                for param, pattern in zip(params, patterns)
+                              ],
+                              desugared_body_with_where_clauses
+                            )
+                          )
             alternatives.append(alternative)
+        rhs = syntax.lambda_many(
+                [param.name for param in params],
+                syntax.alternative_many(alternatives, position=position),
+                position=position,
+              )
         return syntax.Definition(
                  lhs=syntax.Variable(name=name,
                                      position=position),
-                 rhs=syntax.alternative_many(alternatives,
-                                             position=position),
+                 rhs=rhs,
                  where=[],
                  position=position)
 

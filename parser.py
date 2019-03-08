@@ -24,14 +24,14 @@ class Parser:
         self.declare_operator(token.INFIXR, 150, common.OP_ALTERNATIVE)
         self.declare_operator(token.INFIXR, 200, common.OP_SEQUENCE)
 
-    def program(self):
+    def parse_program(self):
         position = self.current_position()
         self.match(token.BEGIN)
         data_declarations = []
         value_declarations = []
         while self._token.type() == token.DELIM:
             self.match(token.DELIM)
-            for decl in self.toplevel_declaration():
+            for decl in self.parse_toplevel_declaration():
                 if decl.is_data_declaration():
                     data_declarations.append(decl)
                 else:
@@ -46,93 +46,94 @@ class Parser:
                  position=position,
                )
 
-    def toplevel_declaration(self):
+    def parse_toplevel_declaration(self):
         if self._token.type() in [token.INFIX, token.INFIXR, token.INFIXL]:
-            self.fixity_declaration()
+            self.parse_fixity_declaration()
             return []
         elif self._token.type() == token.DATA:
-            return [self.data_declaration()]
+            return [self.parse_data_declaration()]
         else:
-            return [self.value_declaration()]
+            return [self.parse_value_declaration()]
 
-    def fixity_declaration(self):
+    def parse_fixity_declaration(self):
         position = self.current_position()
         fixity = self._token.type()
         self.match_any([token.INFIX, token.INFIXR, token.INFIXL])
-        precedence = self.num()
-        name = self._token.value() # Do not use self.id() here.
+        precedence = self.parse_num()
+        name = self._token.value() # Do not use self.parse_id() here.
         self.match(token.ID)
         if fixity in [token.INFIXL, token.INFIXR] and \
            not is_binary_operator(name):
             self.fail('must-be-binary-operator', name=name)
         self.declare_operator(fixity, precedence, name, position=position)
 
-    def data_declaration(self):
+    def parse_data_declaration(self):
         position = self.current_position()
         self.match(token.DATA)
-        lhs = self.expression()
+        lhs = self.parse_expression()
         self.match(token.WHERE)
-        constructors = self.constructor_declarations()
+        constructors = self.parse_constructor_declarations()
         return syntax.DataDeclaration(lhs=lhs,
                                       constructors=constructors,
                                       position=position)
 
-    def value_declarations(self):
+    def parse_value_declarations(self):
         declarations = []
         self.match(token.BEGIN)
         while self._token.type() == token.DELIM:
             self.match(token.DELIM)
-            declarations.append(self.value_declaration())
+            declarations.append(self.parse_value_declaration())
         self.match(token.END)
         return declarations
 
-    def value_declaration(self):
+    def parse_value_declaration(self):
         if self._token.type() == token.ID:
             tok = self._token
             self.next_token()
             if self._token.type() == token.COLON:
                 self.unshift(tok)
-                return self.type_declaration()
+                return self.parse_type_declaration()
             else:
                 self.unshift(tok)
-        return self.declaration()
+        return self.parse_declaration()
 
-    def type_declaration(self):
+    def parse_type_declaration(self):
         position = self.current_position()
-        name = self._token.value() # Do not use self.id() here.
+        name = self._token.value() # Do not use self.parse_id() here.
         self.match(token.ID)
         if common.is_operator(name) and not self.is_declared_operator(name):
-            self.declare_operator(token.INFIX,
+            fixity = token.INFIXL if is_binary_operator(name) else token.INFIX
+            self.declare_operator(fixity,
                                   precedence.DEFAULT_PRECEDENCE,
                                   name)
 
         self.match(token.COLON)
-        type = self.expression()
+        type = self.parse_expression()
         return syntax.TypeDeclaration(name=name, type=type, position=position)
 
-    def declaration(self):
+    def parse_declaration(self):
         position = self.current_position()
-        lhs = self.expression()
+        lhs = self.parse_expression()
         self.match(token.EQ)
-        rhs = self.expression()
+        rhs = self.parse_expression()
         if self._token.type() == token.WHERE:
             self.match(token.WHERE)
-            where = self.value_declarations()
+            where = self.parse_value_declarations()
         else:    
             where = []
         return syntax.Definition(lhs=lhs, rhs=rhs, where=where,
                                  position=position)
 
-    def constructor_declarations(self):
+    def parse_constructor_declarations(self):
         self.match(token.BEGIN)
         decls = []
         while self._token.type() == token.DELIM:
             self.match(token.DELIM)
-            decls.append(self.type_declaration())
+            decls.append(self.parse_type_declaration())
         self.match(token.END)
         return decls
 
-    def id(self):
+    def parse_id(self):
         name = self._token.value()
         if self.is_operator_part():
             self.fail('operator-part-is-not-a-variable', name=name)
@@ -141,31 +142,31 @@ class Parser:
             self.fail('undeclared-operator', name=name)
         return name
 
-    def num(self):
+    def parse_num(self):
         tok = self._token
         self.match(token.NUM)
         return tok.value()
 
-    def expression(self):
-        return self.expression_mixfix()
+    def parse_expression(self):
+        return self.parse_expression_mixfix()
 
-    def expression_mixfix(self, level=0):
+    def parse_expression_mixfix(self, level=0):
         if level == 0:
             level = self._prectable.first_level()
         if level is None:
-            return self.application()
+            return self.parse_application()
         fixity = self._prectable.fixity(level)
         if fixity == token.INFIX:
-            return self.expression_infix(level)
+            return self.parse_expression_infix(level)
         elif fixity == token.INFIXL:
-            return self.expression_infixl(level)
+            return self.parse_expression_infixl(level)
         elif fixity == token.INFIXR:
-            return self.expression_infixr(level)
+            return self.parse_expression_infixr(level)
         else:
             print(fixity)
             raise Exception('Fixity not implemented.')
 
-    def expression_infix(self, level):
+    def parse_expression_infix(self, level):
         position = self.current_position()
         status = []
         children = []
@@ -193,7 +194,7 @@ class Parser:
             else:
                 status.append('')
                 next_level = self._prectable.next_level(level)
-                children.append(self.expression_mixfix(level=next_level))
+                children.append(self.parse_expression_mixfix(level=next_level))
             if self._prectable.is_status_in_level(level, status):
                 expr = syntax.Variable(name=lexer.operator_from_parts(status))
                 for arg in children:
@@ -204,16 +205,16 @@ class Parser:
             return children[0]
         self.fail('cannot-parse-expression')
 
-    def expression_infixl(self, level):
+    def parse_expression_infixl(self, level):
         position = self.current_position()
         next_level = self._prectable.next_level(level)
-        expr = self.expression_mixfix(level=next_level)
+        expr = self.parse_expression_mixfix(level=next_level)
         while self.is_operator_part() and \
               self._prectable.is_binop_in_level(level, self._token.value()):
             op = lexer.operator_from_parts(['', self._token.value(), ''])
             operator = syntax.Variable(name=op, position=position)
             self.next_token()
-            arg = self.expression_mixfix(level=next_level)
+            arg = self.parse_expression_mixfix(level=next_level)
             expr = syntax.Application(
                      fun=syntax.Application(
                            fun=operator,
@@ -223,16 +224,16 @@ class Parser:
                      position=position)
         return expr
 
-    def expression_infixr(self, level):
+    def parse_expression_infixr(self, level):
         position = self.current_position()
         next_level = self._prectable.next_level(level)
-        expr = self.expression_mixfix(level=next_level)
+        expr = self.parse_expression_mixfix(level=next_level)
         if self.is_operator_part() and \
            self._prectable.is_binop_in_level(level, self._token.value()):
             op = lexer.operator_from_parts(['', self._token.value(), ''])
             operator = syntax.Variable(name=op, position=position)
             self.next_token()
-            arg = self.expression_mixfix(level=level)
+            arg = self.parse_expression_mixfix(level=level)
             return syntax.Application(
                      fun=syntax.Application(
                            fun=operator,
@@ -252,28 +253,29 @@ class Parser:
             token.END,
         ]
 
-    def application(self):
+    def parse_application(self):
         position = self.current_position()
-        expr = self.atom()
+        expr = self.parse_atom()
         while not self.end_of_application():
-            arg = self.atom()
+            arg = self.parse_atom()
             expr = syntax.Application(fun=expr, arg=arg, position=position)
         return expr
 
     def end_of_application(self):
         return self.is_operator_part() or self.end_of_expression()
 
-    def atom(self):
+    def parse_atom(self):
         position = self.current_position()
         if self._token.type() == token.LPAREN:
             self.match(token.LPAREN)
-            expr = self.expression()
+            expr = self.parse_expression()
             self.match(token.RPAREN)
             return expr
         elif self._token.type() == token.NUM:
-            return syntax.IntegerConstant(value=self.num(), position=position)
+            return syntax.IntegerConstant(value=self.parse_num(),
+                                          position=position)
         elif self._token.type() == token.ID:
-            return syntax.Variable(name=self.id(), position=position)
+            return syntax.Variable(name=self.parse_id(), position=position)
         elif self._token.type() == token.UNDERSCORE:
             self.next_token()
             return syntax.Wildcard(position=position)
@@ -336,5 +338,5 @@ if __name__ == '__main__':
     import sys
 
     parser = Parser(sys.stdin.read())
-    print(syntax.pprint(parser.program()))
+    print(syntax.pprint(parser.parse_program()))
 

@@ -46,6 +46,8 @@ E_MESSAGES = {
         'Invalid character (0x{character}).',
     'lexer:consecutive-underscores':
         'A name cannot contain two consecutive underscores.',
+    'lexer:unclosed-multiline-comment':
+        'End-of-file was found with unclosed multiline comments.',
 
     'precedece:not-an-operator':
         'Name "{name}" is not an operator.',
@@ -92,6 +94,9 @@ E_MESSAGES = {
         'Head of declaration should be a variable, but found: {head}',
     'typechecker:name-declared-but-not-defined':
         'Name {name} is declared but not defined.',
+    'typechecker:equations-arity-mismatch':
+        'All equations defining "{name}" should have the same ' +
+        'number of parameters.',
 }
 
 class LangException(Exception):

@@ -7,8 +7,8 @@ import typecheck
 def run(filename):
     with open(filename) as f:
         source = f.read()
-        parse = parser.Parser(source, filename=filename)
-        ast = parse.program()
+        parser_ = parser.Parser(source, filename=filename)
+        ast = parser_.parse_program()
         #print(syntax.pprint(ast))
 
         checker = typecheck.TypeChecker()

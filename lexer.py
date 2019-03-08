@@ -82,7 +82,7 @@ class Lexer:
             yield self.next_token()
 
     def next_token(self):
-        self.ignore_whitespace()
+        self.ignore_whitespace_and_comments()
         tok = self.match_symbol()
         if tok is not None:
             return tok
@@ -115,7 +115,7 @@ class Lexer:
             return token.Token(type, name, position=pos)
 
     def eof(self):
-        self.ignore_whitespace()
+        self.ignore_whitespace_and_comments()
         return self._scanner.eof()
 
     def peek(self):
@@ -132,6 +132,32 @@ class Lexer:
 
     def token(self, type, value):
         return token.Token(type, value, position=self._scanner)
+
+    def ignore_whitespace_and_comments(self):
+        while True:
+            self.ignore_whitespace()
+            if self.match('--'):
+                self.ignore_single_line_comment()
+            elif self.match('{-'):
+                self.ignore_multiline_comment()
+            else:
+                break
+
+    def ignore_single_line_comment(self):
+        while not self._scanner.eof() and self.peek() != '\n':
+            self.next()
+
+    def ignore_multiline_comment(self):
+        b = 1
+        self.next()
+        while not self._scanner.eof() and b > 0:
+            if self.match('{-'):
+                b += 1
+            elif self.match('-}'):
+                b -= 1
+            self.next()
+        if self._scanner.eof() and b > 0:
+            self.fail('unclosed-multiline-comment')
 
     def ignore_whitespace(self):
         while not self._scanner.eof() and common.is_blank(self.peek()):
