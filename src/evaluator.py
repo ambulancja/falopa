@@ -6,6 +6,8 @@ class Evaluator:
             yield expr
         else:
             raise Exception(
-                    'Evaluation not implemented for {expr}.'.format(expr=expr)
+                    'Evaluation not implemented for {cls}.'.format(
+                       cls=type(expr)
+                    )
                   )
 
