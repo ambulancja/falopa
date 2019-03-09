@@ -109,7 +109,12 @@ class TypeChecker:
             self.check_data_declaration_rhs(decl)
 
         # Check the expression of the main program
-        self.check_expr(program.body)
+        t_body, e_body = self.check_expr(program.body)
+        return syntax.Program(
+                 data_declarations=program.data_declarations,
+                 body=e_body,
+                 position=program.position,
+               )
 
     def check_data_declaration_lhs(self, decl):
         arity = 0
@@ -211,7 +216,6 @@ class TypeChecker:
         else:
             return False
 
-    # Returns a desugared expression
     def check_expr(self, expr):
         if expr.is_let():
             return self.check_let(expr)
@@ -263,8 +267,6 @@ class TypeChecker:
     def check_let(self, expr):
         # Check kinds and extend environment
         # to allow for recursive definitions.
-        desugared_declarations = []
-
         declared_names = set()
         definitions = {}
         definition_keys = []
@@ -274,7 +276,6 @@ class TypeChecker:
             if decl.is_type_declaration():
                 decl = self.check_type_declaration(decl)
                 declared_names.add(decl.name)
-                desugared_declarations.append(decl)
                 type_declarations.append(decl)
             elif decl.is_definition():
                 head = decl.lhs.application_head()
@@ -301,25 +302,25 @@ class TypeChecker:
                        name=missing.pop(),
                        position=expr.position)
 
+        e_decls = []
         for name in definition_keys:
-            desugared = self.desugar_definition(name, definitions[name])
-            desugared_declarations.append(desugared)
+            e_decls.append(self.desugar_definition(name, definitions[name]))
 
         self.generalize_types_in_current_scope()
-        self.check_declared_instantiate_real(type_declarations)
+        self.check_declared_instantiate_real(type_declarations) 
 
         body_type, desugared_body = self.check_expr(expr.body)
 
-        ## DEBUG
-        for decl in desugared_declarations:
-            if decl.is_type_declaration():
-                continue
-            print()
-            print('{name} : {type}'.format(
-                    name=decl.lhs.name,
-                    type=self._env.value(decl.lhs.name).show()))
-            print('{d}'.format(d=decl.show()))
-        ## END DEBUG
+        # To reconstruct the final AST
+        desugared_declarations = []
+        for e_decl in e_decls:
+            t_decl = syntax.TypeDeclaration(
+                         name=e_decl.lhs.name,
+                         type=self._env.value(e_decl.lhs.name),
+                         position=e_decl.position
+                     )
+            desugared_declarations.append(t_decl)
+            desugared_declarations.append(e_decl)
 
         self._env.close_scope()
         return (body_type,

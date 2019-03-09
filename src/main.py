@@ -12,7 +12,8 @@ def run(filename):
         #print(syntax.pprint(ast))
 
         checker = typecheck.TypeChecker()
-        checker.check_program(ast)
+        checked_ast = checker.check_program(ast)
+        print(checked_ast.show())
 
 def usage(program):
     sys.stderr.write('Usage: {program} input.fa\n'.format(program=program))

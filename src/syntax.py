@@ -159,6 +159,14 @@ class Program(AST):
                      ['data_declarations', 'body'],
                      **kwargs)
 
+    def show(self):
+        lines = []
+        for decl in self.data_declarations:
+            lines.append(decl.show())
+            lines.append('')
+        lines.append(self.body.show())
+        return '\n'.join(lines)
+
 # Declarations
 
 class DataDeclaration(AST):
@@ -169,6 +177,13 @@ class DataDeclaration(AST):
     def is_data_declaration(self):
         return True
 
+    def show(self):
+        lines = []
+        lines.append('data {lhs} where'.format(lhs=self.lhs.show()))
+        for decl in self.constructors:
+            lines.append('  {decl}'.format(decl=decl.show()))
+        return '\n'.join(lines)
+
 class TypeDeclaration(AST):
 
     def __init__(self, **kwargs):
@@ -176,6 +191,12 @@ class TypeDeclaration(AST):
 
     def is_type_declaration(self):
         return True
+
+    def show(self):
+        return '{name} : {type}'.format(
+                 name=self.name,
+                 type=self.type.show()
+               )
 
 class Definition(AST):
 
@@ -463,12 +484,17 @@ class Let(AST):
         return fvs
 
     def show(self):
-        return 'let\n' + \
-               '\n'.join([
-                 common.indent(decl.show(), 4)
-                   for decl in self.declarations
-               ]) + '\n in\n' + \
-               common.indent(self.body.show(), 4)
+        lines = []
+        lines.append('let')
+        i = 0
+        for decl in self.declarations:
+            lines.append(common.indent(decl.show(), 4))
+            i += 1
+            if i < len(self.declarations) and not decl.is_type_declaration():
+                lines.append('')
+        lines.append(' in')
+        lines.append(common.indent(self.body.show(), 4))
+        return '\n'.join(lines)
 
 # Only at the type level
 class Forall(AST):
