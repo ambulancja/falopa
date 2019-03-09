@@ -247,6 +247,9 @@ class Variable(AST):
 def primitive_type_int():
     return Variable(name=common.TYPE_INT, position=None)
 
+def primitive_type_unit():
+    return Variable(name=common.TYPE_UNIT, position=None)
+
 def fresh_variable(prefix='x', position=None):
     return Variable(name='{prefix}.{index}'.format(
                             prefix=prefix,
@@ -439,11 +442,25 @@ class Let(AST):
         return True
 
     def free_variables(self):
-        free_vars = set()
-        for decl in self.declarations:
-            # TODO!!! which are the bound variables??
-            pass
-        free_vars |= self.body.free_vars()
+        fvs = set()
+
+        bvs = set()
+        for decl in declarations:
+            if not decl.is_definition():
+                continue
+            head = decl.lhs.application_head()
+            if head.is_variable():
+                bvs.append(head.name)
+
+        for decl in declarations:
+            if not decl.is_definition():
+                continue
+            fvs |= decl.lhs.free_variables()
+            fvs |= Let(declarations=decl.where,
+                       body=decl.rhs).free_variables()
+        fvs |= self.body.free_variables()
+        fvs = fvs - bvs
+        return fvs
 
     def show(self):
         return 'let\n' + \

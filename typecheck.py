@@ -14,6 +14,7 @@ def primitive_types():
                 )
         ),
         (common.TYPE_INT, kinds.Set()),
+        (common.TYPE_UNIT, kinds.Set()),
     ]
 
 def primitive_values():
@@ -22,13 +23,28 @@ def primitive_values():
             syntax.Forall(
                 var='a',
                 body=syntax.function(
-                    syntax.Variable(name='a', position='U'),
+                    syntax.Variable(name='a'),
                     syntax.function(
-                        syntax.Variable(name='a', position='U'),
-                        syntax.Variable(name='a', position='U'),
-                        position='U'),
-                    position='U'),
-                position='U')),
+                        syntax.Variable(name='a'),
+                        syntax.Variable(name='a'))))),
+        (common.OP_SEQUENCE,
+            syntax.Forall(
+                var='a',
+                body=syntax.Forall(
+                    var='b',
+                    body=syntax.function(
+                        syntax.Variable(name='a'),
+                        syntax.function(
+                            syntax.Variable(name='b'),
+                            syntax.Variable(name='b')))))),
+        (common.OP_UNIFY,
+            syntax.Forall(
+                var='a',
+                body=syntax.function(
+                    syntax.Variable(name='a'),
+                    syntax.function(
+                        syntax.Variable(name='a'),
+                        syntax.primitive_type_unit())))),
     ]
 
 class Environment:

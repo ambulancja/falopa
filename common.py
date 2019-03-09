@@ -5,6 +5,7 @@ OP_ALTERNATIVE = '_<>_'
 OP_SEQUENCE = '_>>_'
 
 TYPE_INT = 'Int'
+TYPE_UNIT = 'Unit'
 
 def indent(text, n=2):
     return '\n'.join([' ' * n + line for line in text.split('\n')])
