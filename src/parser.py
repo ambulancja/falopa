@@ -269,6 +269,9 @@ class Parser:
         position = self.current_position()
         if self._token.type() == token.LPAREN:
             self.match(token.LPAREN)
+            if self._token.type() == token.RPAREN:
+                self.match(token.RPAREN)
+                return syntax.Variable(name="()", position=position)
             expr = self.parse_expression()
             self.match(token.RPAREN)
             return expr

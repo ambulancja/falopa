@@ -4,10 +4,10 @@ OP_UNIFY = '_==_'
 OP_ALTERNATIVE = '_<>_'
 OP_SEQUENCE = '_>>_'
 
-VALUE_UNIT = 'unit'
+VALUE_UNIT = '()'
 
 TYPE_INT = 'Int'
-TYPE_UNIT = 'Unit'
+TYPE_UNIT = '()'
 
 def indent(text, n=2):
     return '\n'.join([' ' * n + line for line in text.split('\n')])
