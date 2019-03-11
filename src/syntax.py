@@ -2,6 +2,7 @@ import common
 import lexer
 
 class AST:
+    "Base class for all syntactic constructs."
 
     def __init__(self, attributes, **kwargs):
         if 'position' in kwargs:
@@ -48,6 +49,9 @@ class AST:
         return False
 
     def is_fresh(self):
+        return False
+
+    def is_lambda(self):
         return False
 
     def is_let(self):
@@ -417,6 +421,9 @@ class Lambda(AST):
     def free_variables(self):
         return self.body.free_variables() - set([self.var])
 
+    def is_lambda(self):
+        return True
+
     def show(self):
         return 'λ {var} . {body}'.format(
                  var=self.var,
@@ -426,7 +433,7 @@ class Lambda(AST):
 def lambda_many(vars, body, position=None):
     if position is None:
         position = body.position
-    for var in vars:
+    for var in reversed(vars):
         body = Lambda(var=var, body=body, position=position)
     return body
 
@@ -623,7 +630,10 @@ def unify_types(t1, t2):
     if t1.is_metavar():
         if t1 == t2:
             return
-        # TODO: occurs check!
+        if t1 in t2.free_metavars():
+            raise common.UnificationFailure('occurs-check-fail',
+                                            type1=t1.show(),
+                                            type2=t2.show())
         return t1.instantiate(t2)
     elif t2.is_metavar():
         return unify_types(t2, t1)
@@ -643,32 +653,4 @@ def unify_types(t1, t2):
                 type2=t2.show())
     for s1, s2 in zip(args1, args2):
         unify_types(s1, s2)
-
-#### Values (only in runtime)
-
-class Constructor(AST):
-
-    def __init__(self, **kwargs):
-        AST.__init__(self, ['name'], **kwargs)
-
-    def is_variable(self):
-        return False
-
-    def free_variables(self):
-        return set()
-
-    def free_metavars(self):
-        return set()
-
-    def show(self):
-        return self.name
-
-    def is_atom(self):
-        return True
-
-    def instantiate_type_variable(self, name, value):
-        return self
-
-    def instantiate_metavar(self, metavar, value):
-        return self
 

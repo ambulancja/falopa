@@ -4,6 +4,8 @@ OP_UNIFY = '_==_'
 OP_ALTERNATIVE = '_<>_'
 OP_SEQUENCE = '_>>_'
 
+VALUE_UNIT = 'unit'
+
 TYPE_INT = 'Int'
 TYPE_UNIT = 'Unit'
 
@@ -104,6 +106,8 @@ E_MESSAGES = {
         'Unbound variable "{name}".',
     'typechecker:types-do-not-unify':
         'Types "{type1}" and "{type2}" do not unify.',
+    'typechecker:occurs-check-fail':
+        'Unification\'d give infinite type ("{type1}" vs. "{type2}").',
     'typechecker:malformed-type':
         'Malformed type "{type}".',
 }

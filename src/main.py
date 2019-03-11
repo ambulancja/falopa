@@ -24,6 +24,8 @@ def run(filename):
     print(40 * '=')
     for result in results:
         print(result.show())
+        input(" ; ")
+    print("No.")
 
 def usage(program):
     sys.stderr.write('Usage: {program} input.fa\n'.format(program=program))

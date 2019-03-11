@@ -20,9 +20,9 @@ class Parser:
 
         # Primitive operators
         self.declare_operator(token.INFIXR, 50, common.OP_ARROW)
-        self.declare_operator(token.INFIXR, 100, common.OP_UNIFY)
-        self.declare_operator(token.INFIXR, 150, common.OP_ALTERNATIVE)
-        self.declare_operator(token.INFIXR, 200, common.OP_SEQUENCE)
+        self.declare_operator(token.INFIXR, 100, common.OP_ALTERNATIVE)
+        self.declare_operator(token.INFIXR, 150, common.OP_SEQUENCE)
+        self.declare_operator(token.INFIXR, 200, common.OP_UNIFY)
 
     def parse_program(self):
         position = self.current_position()

@@ -46,6 +46,8 @@ def primitive_values():
                     syntax.function(
                         syntax.Variable(name='a'),
                         syntax.primitive_type_unit())))),
+
+        (common.VALUE_UNIT, syntax.primitive_type_unit()),
     ]
 
 class TypeChecker:
@@ -357,7 +359,7 @@ class TypeChecker:
                 self._env.define(var, syntax.Metavar(prefix="t",
                                                      position=position))
 
-        # TODO: force binding by prefixing a variable with "."
+        # TODO: allow forced binding by prefixing a variable with "."
 
         if len(equation.where) == 0:
             d_type, d_body = self.check_expr(body)
