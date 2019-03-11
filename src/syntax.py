@@ -644,3 +644,31 @@ def unify_types(t1, t2):
     for s1, s2 in zip(args1, args2):
         unify_types(s1, s2)
 
+#### Values (only in runtime)
+
+class Constructor(AST):
+
+    def __init__(self, **kwargs):
+        AST.__init__(self, ['name'], **kwargs)
+
+    def is_variable(self):
+        return False
+
+    def free_variables(self):
+        return set()
+
+    def free_metavars(self):
+        return set()
+
+    def show(self):
+        return self.name
+
+    def is_atom(self):
+        return True
+
+    def instantiate_type_variable(self, name, value):
+        return self
+
+    def instantiate_metavar(self, metavar, value):
+        return self
+
