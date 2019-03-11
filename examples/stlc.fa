@@ -5,19 +5,14 @@ infix  350 _,_
 infixr 400 _->_
 infix  400 \_
 infixl 450 _`_
-infixr 500 _×_
-infixr 500 _|_
-
-data A × B where
-  _|_ : A → B → A × B
 
 data ℕ where
   zero : ℕ
   suc  : ℕ → ℕ
 
 data Term where
-  var   : ℕ → Term
-  _`_   : Term → Term → Term
+  var : ℕ → Term
+  _`_ : Term → Term → Term
   \_  : Term → Term
 
 data Type where

@@ -9,6 +9,8 @@ SYMBOLS = {
 
 KEYWORDS = {
     'data': token.DATA,
+    'fresh': token.FRESH,
+    'in': token.IN,
     'infix': token.INFIX,
     'infixl': token.INFIXL,
     'infixr': token.INFIXR,

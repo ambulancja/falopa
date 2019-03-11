@@ -149,7 +149,20 @@ class Parser:
         return tok.value()
 
     def parse_expression(self):
-        return self.parse_expression_mixfix()
+        if self._token.type() == token.FRESH:
+            return self.parse_fresh()
+        else:
+            return self.parse_expression_mixfix()
+
+    def parse_fresh(self):
+        position = self.current_position()
+        self.match(token.FRESH)
+        ids = []
+        while self._token.type() == token.ID:
+            ids.append(self.parse_id())
+        self.match(token.IN)
+        body = self.parse_expression()
+        return syntax.fresh_many(ids, body, position=position)
 
     def parse_expression_mixfix(self, level=0):
         if level == 0:

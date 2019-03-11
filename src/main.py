@@ -11,7 +11,7 @@ def run(filename):
 
     parser_ = parser.Parser(source, filename=filename)
     ast = parser_.parse_program()
-    #print(syntax.pprint(ast))
+    #print(ast.show())
 
     typechecker_ = typechecker.TypeChecker()
     checked_ast = typechecker_.check_program(ast)

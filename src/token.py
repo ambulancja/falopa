@@ -17,6 +17,8 @@ COLON = 'COLON'
 # Keywords
 DATA = 'DATA'
 EQ = 'EQ'
+FRESH = 'FRESH'
+IN = 'IN'
 INFIX = 'INFIX'
 INFIXL = 'INFIXL'
 INFIXR = 'INFIXR'
