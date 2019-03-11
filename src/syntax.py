@@ -276,7 +276,7 @@ def primitive_type_unit():
     return Variable(name=common.TYPE_UNIT, position=None)
 
 def fresh_variable(prefix='x', position=None):
-    return Variable(name='{prefix}.{index}'.format(
+    return Variable(name='{prefix}{index}.'.format(
                             prefix=prefix,
                             index=common.fresh_index()),
                     position=position)

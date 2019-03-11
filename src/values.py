@@ -98,7 +98,7 @@ class Metavar(Value):
 
     def show(self):
         if self._indirection is None:
-            return '?{prefix}.{index}'.format(
+            return '?{prefix}{index}'.format(
                        prefix=self.prefix,
                        index=self.index
                    )
