@@ -1,8 +1,12 @@
+import lexer
 import common
 
 ####
 
 class Value:
+
+    def __init__(self):
+        self.position = None
 
     def is_thunk(self):
         return False
@@ -28,12 +32,52 @@ class Value:
     def is_decided(self):
         return True
 
+    def is_atom(self):
+        return False
+
     def representative(self):
         return self
+
+    def showp(self):
+        s = self.show()
+        if not self.is_atom():
+            s = '(' + s + ')'
+        return s
+
+    def show_application(self, head, args):
+        arity = self._operator_arity(head)
+        if arity == 0:
+            wrap_head = False
+        if len(args) >= arity:
+            head = self._show_mixfix(head, args[:arity])
+            args = args[arity:]
+        if len(args) == 0:
+            return head
+        else:
+            if wrap_head:
+                head = '(' + head + ')'
+            return head + ' ' + ' '.join([arg.showp() for arg in args])
+
+    def _operator_arity(self, opr):
+        arity = 0
+        for part in lexer.operator_to_parts(opr):
+            if part == '':
+                arity += 1
+        return arity
+
+    def _show_mixfix(self, opr, args):
+        res = []
+        for part in lexer.operator_to_parts(opr):
+            if part == '':
+                res.append(args.pop(0).showp())
+            else:
+                res.append(part)
+        return ' '.join(res)
 
 class Metavar(Value):
 
     def __init__(self, prefix='x', **kwargs):
+        Value.__init__(self)
         self.prefix = prefix
         self.index = common.fresh_index()
         self._indirection = None
@@ -54,7 +98,7 @@ class Metavar(Value):
 
     def show(self):
         if self._indirection is None:
-            return '?{prefix}{index}'.format(
+            return '?{prefix}.{index}'.format(
                        prefix=self.prefix,
                        index=self.index
                    )
@@ -68,11 +112,15 @@ class Thunk(Value):
     "Represents a suspended computation."
 
     def __init__(self, expr, env):
+        Value.__init__(self)
         self.expr = expr
         self.env = env
 
     def show(self):
-        return '<thunk {expr} {env}>'.format(expr=self.expr, env=self.env)
+        return '<thunk {expr} {env}>'.format(
+                 expr=self.expr.show(),
+                 env=self.env
+               )
 
     def is_thunk(self):
         return True
@@ -80,10 +128,14 @@ class Thunk(Value):
     def is_decided(self):
         return False
 
+    def is_atom(self):
+        return True
+
 class IntegerConstant(Value):
     "Represents a number."
 
     def __init__(self, value):
+        Value.__init__(self)
         self.value = value
 
     def show(self):
@@ -95,22 +147,28 @@ class IntegerConstant(Value):
     def is_rigid(self):
         return True
 
+    def is_atom(self):
+        return True
+
 class RigidStructure(Value):
     "Represents a constructor applied to a number of arguments."
 
     def __init__(self, constructor, args):
+        Value.__init__(self)
         self.constructor = constructor
         self.args = args
 
     def show(self):
-        return ' '.join([self.constructor] +
-                        [arg.show() for arg in self.args])
+        return self.show_application(self.constructor, self.args)
 
     def is_rigid_structure(self):
         return True
 
     def is_rigid(self):
         return True
+
+    def is_atom(self):
+        return len(self.args) == 0
 
 def unit():
     return RigidStructure(common.VALUE_UNIT, [])
@@ -119,12 +177,18 @@ class FlexStructure(Value):
     "Represents a symbolic variable applied to a number of arguments."
 
     def __init__(self, symbol, args):
+        Value.__init__(self)
         self.symbol = symbol
         self.args = args
 
     def show(self):
-        return ' '.join([self.symbol.show()] +
-                        [arg.show() for arg in self.args])
+        if not self.symbol.is_instantiated():
+            return self.show_application(self.symbol.show(), self.args)
+        else:
+            return ' '.join(
+                     ['{fun}'.format(fun=self.symbol.show())] +
+                     self.args
+                   )
 
     def is_flex_structure(self):
         return True
@@ -134,11 +198,15 @@ class FlexStructure(Value):
         # it has NOT been instantiated yet.
         return not self.symbol.is_instantiated()
 
+    def is_atom(self):
+        return len(self.args) == 0 and self.is_decided()
+
 class Primitive(Value):
     """"Represents a partially applied (but *not* fully applied) primitive.
         such as (_>>_ foo) or (_+_ 10)."""
 
     def __init__(self, name, args):
+        Value.__init__(self)
         self.name = name
         self.args = args
 
@@ -148,10 +216,17 @@ class Primitive(Value):
     def is_rigid(self):
         return True
 
+    def show(self):
+        return self.show_application(self.name, self.args)
+
+    def is_atom(self):
+        return len(self.args) == 0
+
 class Closure(Value):
     "Represents a closure (lambda function enclosed in an environment)."
 
     def __init__(self, var, body, env):
+        Value.__init__(self)
         self.var = var
         self.body = body
         self.env = env
@@ -163,5 +238,8 @@ class Closure(Value):
         return True
 
     def is_rigid(self):
+        return True
+
+    def is_atom(self):
         return True
 

@@ -357,6 +357,13 @@ class Application(AST):
                  position=self.position
                )
 
+def application_many(fun, args, position=None):
+    if position is None:
+        position = fun.position
+    for arg in args:
+        fun = Application(fun=fun, arg=arg, position=position) 
+    return fun
+
 def function(arg_type, result_type, position=None):
     if position is None:
         position = arg_type.position

@@ -11,21 +11,18 @@ def run(filename):
 
     parser_ = parser.Parser(source, filename=filename)
     ast = parser_.parse_program()
-    print(40 * '=')
-    print(syntax.pprint(ast))
+    #print(syntax.pprint(ast))
 
     typechecker_ = typechecker.TypeChecker()
     checked_ast = typechecker_.check_program(ast)
-    print(40 * '=')
-    print(checked_ast.show())
+    #print(checked_ast.show())
 
     evaluator_ = evaluator.Evaluator()
-    results = evaluator_.eval(checked_ast)
-    print(40 * '=')
+    results = evaluator_.eval_program(checked_ast, strategy='strong')
     for result in results:
         print(result.show())
         input(" ; ")
-    print("No.")
+    print("done.")
 
 def usage(program):
     sys.stderr.write('Usage: {program} input.fa\n'.format(program=program))

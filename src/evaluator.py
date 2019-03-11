@@ -24,15 +24,67 @@ class Evaluator:
         self._constructors = primitive_constructors()
         self._primitives = primitive_functions()
 
-    def eval(self, program):
+    def eval_program(self, program, strategy='weak'):
+        assert strategy in ['weak', 'strong']
         for data_decl in program.data_declarations:
             for constructor in data_decl.constructors:
                 self._constructors.add(constructor.name)
         env = environment.PersistentEnvironment()
-        yield from self.eval_expression(program.body, env)
+        if strategy == 'weak':
+            yield from self.eval_expression(program.body, env)
+        else:
+            yield from self.strong_eval_expression(program.body, env)
+
+    def strong_eval_expression(self, expr, env):
+        for value in self.eval_expression(expr, env):
+            yield from self.strong_eval_value(value)
+
+    def strong_eval_value(self, value):
+        if value.is_thunk():
+            for v in self.strong_eval_expression(value.expr, value.env):
+                yield v
+        elif value.is_integer_constant():
+            yield value
+        elif value.is_closure():
+            yield value
+        elif value.is_primitive():
+            for part in self.strong_eval_expression(value.args):
+                yield values.Primitive(value.name, vargs)
+        elif value.is_rigid_structure():
+            for vargs in self.strong_eval_values(value.args):
+                yield values.RigidStructure(value.constructor, vargs)
+        elif value.is_flex_structure():
+            for vargs in self.strong_eval_values(value.args):
+                if value.is_decided():
+                    yield values.FlexStructure(value.symbol, vargs)
+                else:
+                    for v in self.apply_many(value.symbol.representative(),
+                                             vargs):
+                        yield from self.strong_eval_value(v)
+        else:
+            raise Exception(
+                    'Strong evaluation not implemented for {cls}.'.format(
+                       cls=type(value)
+                    )
+                  )
+
+    def strong_eval_values(self, values):
+        if len(values) == 0:
+            yield []
+            return
+        for v0 in self.strong_eval_value(values[0]):
+            for vs in self.strong_eval_values(values[1:]):
+                # NOTE: the values may have lost their decidedness.
+                result = [v0] + vs
+                if all([w.is_decided() for w in result]):
+                    yield result
+                else:
+                    yield from self.strong_eval_values(result)
 
     def eval_expression(self, expr, env):
-        if expr.is_integer_constant():
+        if isinstance(expr, values.Value):
+            yield from self.eval_value(expr)
+        elif expr.is_integer_constant():
             yield from self.eval_integer_constant(expr)
         elif expr.is_variable():
             yield from self.eval_variable_or_constructor(expr, env)
@@ -116,11 +168,14 @@ class Evaluator:
         if len(vargs) == 0:
             yield value
         else:
-            for v in apply_many(value, vargs[0]):
-                yield from apply_many(v, vargs[1:])
+            for v in self.apply(value, vargs[0]):
+                yield from self.apply_many(v, vargs[1:])
 
     def apply(self, value, varg):
-        if value.is_rigid_structure():
+        if value.is_thunk():
+            for v in self.eval_expression(value.expr, value.env):
+                yield from self.apply(v, varg)
+        elif value.is_rigid_structure():
             yield from self.apply_rigid(value, varg)
         elif value.is_flex_structure():
             yield from self.apply_flex(value, varg)
@@ -204,21 +259,47 @@ class Evaluator:
                len(val1.args) == len(val2.args):
                 subgoals = list(zip(val1.args, val2.args))
                 yield from self.unify(subgoals + goals)
+        #
+        # TODO: "same head" case?
+        #    x t1 ... tn == x s1 ... sn
+        #
         elif val1.is_flex_structure() and len(val1.args) == 0:
-            assert not val1.symbol.is_instantiated() # decided
             # TODO: occurs check
-            # TODO: "same head" case?
+            assert not val1.symbol.is_instantiated() # decided
             val1.symbol.instantiate(val2)
             yield from self.unify(goals)
             val1.symbol.uninstantiate()
         elif val1.is_flex_structure() and len(val1.args) > 0:
             # TODO: occurs check
-            # TODO: IMPLEMENT
             assert not val1.symbol.is_instantiated() # decided
-            raise Exception('Higher order unification not implemented yet.')
+            new_var = syntax.fresh_variable()
+            params = [syntax.fresh_variable() for arg in val1.args]
+            term = syntax.lambda_many(
+                     [p.name for p in params],
+                     syntax.alternative(
+                       syntax.sequence_many1(
+                         [syntax.unify(p, a)
+                            for p, a in zip(params, val1.args)],
+                         val2 # body
+                       ),
+                       syntax.application_many(new_var, params)
+                     )
+                   )
+            env = environment.PersistentEnvironment()
+            env.define(new_var.name, 
+                       values.FlexStructure(
+                         values.Metavar(prefix='F'),
+                         []))
+            val1.symbol.instantiate(
+                values.Thunk(
+                    term,
+                    env
+                )
+            )
+            yield from self.unify(goals)
+            val1.symbol.uninstantiate()
         elif val2.is_flex_structure():
             yield from self.unify([(val2, val1)] + goals)
         else:
-            # FAIL
-            return
+            return # Otherwise we fail
 
