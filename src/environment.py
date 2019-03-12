@@ -58,6 +58,14 @@ class PersistentEnvironment:
             env = env._parent
         return False
 
+    def set(self, name, value):
+        env = self
+        while env is not None:
+            if name in env._rib:
+                env._rib[name] = value
+                return
+            env = env._parent
+
     def value(self, name):
         env = self
         while env is not None:

@@ -314,7 +314,7 @@ class Application(AST):
             return head
         else:
             if wrap_head:
-                head = '(' + head + ')'
+                head = '({head})'.format(head=head)
             return head + ' ' + ' '.join([arg.showp() for arg in args])
 
     def _operator_arity(self, opr):

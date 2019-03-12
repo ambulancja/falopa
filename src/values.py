@@ -74,6 +74,9 @@ class Value:
                 res.append(part)
         return ' '.join(res)
 
+    def free_metavars(self):
+        return set()
+
 class Metavar(Value):
 
     def __init__(self, prefix='x', **kwargs):
@@ -108,6 +111,12 @@ class Metavar(Value):
     def is_instantiated(self):
         return self._indirection is not None
 
+    def free_metavars(self):
+        if self._indirection is None:
+            return set([self])
+        else:
+            return self._indirection.free_metavars()
+
 class Thunk(Value):
     "Represents a suspended computation."
 
@@ -117,7 +126,7 @@ class Thunk(Value):
         self.env = env
 
     def show(self):
-        return '<thunk {expr} {env}>'.format(
+        return '({expr})@...'.format(
                  expr=self.expr.show(),
                  env=self.env
                )
@@ -170,6 +179,12 @@ class RigidStructure(Value):
     def is_atom(self):
         return len(self.args) == 0
 
+    def free_metavars(self):
+        fmvs = set()
+        for arg in self.args:
+            fmvs |= arg.free_metavars()
+        return fmvs
+
 def unit():
     return RigidStructure(common.VALUE_UNIT, [])
 
@@ -201,6 +216,12 @@ class FlexStructure(Value):
     def is_atom(self):
         return len(self.args) == 0 and self.is_decided()
 
+    def free_metavars(self):
+        fmvs = self.symbol.free_metavars()
+        for arg in self.args:
+            fmvs |= arg.free_metavars()
+        return fmvs
+
 class Primitive(Value):
     """"Represents a partially applied (but *not* fully applied) primitive.
         such as (_>>_ foo) or (_+_ 10)."""
@@ -221,6 +242,12 @@ class Primitive(Value):
 
     def is_atom(self):
         return len(self.args) == 0
+
+    def free_metavars(self):
+        fmvs = set()
+        for arg in self.args:
+            fmvs |= arg.free_metavars()
+        return fmvs
 
 class Closure(Value):
     "Represents a closure (lambda function enclosed in an environment)."

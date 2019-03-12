@@ -110,9 +110,9 @@ class Evaluator:
         if env.is_defined(expr.name):
             value0 = env.value(expr.name)
             for value in self.eval_value(value0):
-                env.define(expr.name, value)
+                env.set(expr.name, value)
                 yield value
-                env.define(expr.name, value0)
+                env.set(expr.name, value0)
         elif expr.name in self._constructors:
             yield values.RigidStructure(expr.name, [])
         elif expr.name in self._primitives:
@@ -235,6 +235,7 @@ class Evaluator:
         yield from self.unify([(val1, val2)])
 
     def unify(self, goals):
+        #print('UNIFICO {goals}'.format(goals=[(x.show(), y.show()) for (x, y) in goals]))
         if len(goals) == 0:
             yield values.unit()
             return
@@ -259,12 +260,16 @@ class Evaluator:
                len(val1.args) == len(val2.args):
                 subgoals = list(zip(val1.args, val2.args))
                 yield from self.unify(subgoals + goals)
-        #
-        # TODO: "same head" case?
+
+        # Same head:
         #    x t1 ... tn == x s1 ... sn
-        #
+        #elif val1.is_flex_structure() \
+        #         and val2.is_flex_structure() \
+        #         and val1.symbol == val2.symbol \
+        #         and len(val1.args) == len(val2.args):
+        #     subgoals = list(zip(val1.args, val2.args))
+        #     yield from self.unify(subgoals + goals)
         elif val1.is_flex_structure() and len(val1.args) == 0:
-            # TODO: occurs check
             assert not val1.symbol.is_instantiated() # decided
             val1.symbol.instantiate(val2)
             yield from self.unify(goals)
