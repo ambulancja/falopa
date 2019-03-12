@@ -270,6 +270,7 @@ class Evaluator:
         #     subgoals = list(zip(val1.args, val2.args))
         #     yield from self.unify(subgoals + goals)
         elif val1.is_flex_structure() and len(val1.args) == 0:
+            # TODO: occurs check
             assert not val1.symbol.is_instantiated() # decided
             val1.symbol.instantiate(val2)
             yield from self.unify(goals)
