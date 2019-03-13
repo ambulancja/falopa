@@ -117,6 +117,12 @@ class Metavar(Value):
         else:
             return self._indirection.free_metavars()
 
+    def is_strongly_decided(self):
+        if self._indirection is None:
+            return True
+        else:
+            return self._indirection.is_strongly_decided()
+
 class Thunk(Value):
     "Represents a suspended computation."
 
@@ -140,6 +146,9 @@ class Thunk(Value):
     def is_atom(self):
         return True
 
+    def is_strongly_decided(self):
+        return False
+
 class IntegerConstant(Value):
     "Represents a number."
 
@@ -157,6 +166,9 @@ class IntegerConstant(Value):
         return True
 
     def is_atom(self):
+        return True
+
+    def is_strongly_decided(self):
         return True
 
 class RigidStructure(Value):
@@ -184,6 +196,9 @@ class RigidStructure(Value):
         for arg in self.args:
             fmvs |= arg.free_metavars()
         return fmvs
+
+    def is_strongly_decided(self):
+        return all([arg.is_strongly_decided() for arg in self.args])
 
 def unit():
     return RigidStructure(common.VALUE_UNIT, [])
@@ -222,6 +237,10 @@ class FlexStructure(Value):
             fmvs |= arg.free_metavars()
         return fmvs
 
+    def is_strongly_decided(self):
+        return self.is_decided() and \
+               all([arg.is_strongly_decided() for arg in self.args])
+
 class Primitive(Value):
     """"Represents a partially applied (but *not* fully applied) primitive.
         such as (_>>_ foo) or (_+_ 10)."""
@@ -249,6 +268,9 @@ class Primitive(Value):
             fmvs |= arg.free_metavars()
         return fmvs
 
+    def is_strongly_decided(self):
+        return True
+
 class Closure(Value):
     "Represents a closure (lambda function enclosed in an environment)."
 
@@ -268,5 +290,8 @@ class Closure(Value):
         return True
 
     def is_atom(self):
+        return True
+
+    def is_strongly_decided(self):
         return True
 

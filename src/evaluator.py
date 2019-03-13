@@ -76,7 +76,7 @@ class Evaluator:
             for vs in self.strong_eval_values(values[1:]):
                 # NOTE: the values may have lost their decidedness.
                 result = [v0] + vs
-                if all([w.is_decided() for w in result]):
+                if all([w.is_strongly_decided() for w in result]):
                     yield result
                 else:
                     yield from self.strong_eval_values(result)
@@ -235,7 +235,6 @@ class Evaluator:
         yield from self.unify([(val1, val2)])
 
     def unify(self, goals):
-        #print('UNIFICO {goals}'.format(goals=[(x.show(), y.show()) for (x, y) in goals]))
         if len(goals) == 0:
             yield values.unit()
             return

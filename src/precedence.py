@@ -42,8 +42,7 @@ class PrecedenceTable:
         if not common.is_operator(name):
             self.fail('not-an-operator', name=name, position=position)
         if name in self._operators:
-            self.fail('operator-already-exists', name=name,
-                                                 position=position)
+            self.fail('operator-already-exists', name=name, position=position)
 
         for part in lexer.operator_to_parts(name):
             if part != '':

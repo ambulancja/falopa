@@ -41,6 +41,7 @@ def fresh_index():
 E_STAGES = {
     'lexer': 'Lexical error near {position}',
     'parser': 'Parse error near {position}',
+    'precedence': 'Parse error near {position}',
     'typechecker': 'Type error near {position}',
 }
 
@@ -54,7 +55,7 @@ E_MESSAGES = {
     'lexer:unclosed-multiline-comment':
         'End-of-file was found with unclosed multiline comments.',
 
-    'precedece:not-an-operator':
+    'precedence:not-an-operator':
         'Name "{name}" is not an operator.',
     'precedence:operator-already-exists':
         'Operator "{name}" has already been declared before.',
