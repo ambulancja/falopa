@@ -344,6 +344,7 @@ class TypeChecker:
                  position=position)
 
     def desugar_equation(self, params, param_types, result_type, equation):
+        name = equation.lhs.application_head().name
         position = equation.position
         patterns = equation.lhs.application_args()
         body = equation.rhs
