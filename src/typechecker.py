@@ -228,40 +228,14 @@ class TypeChecker:
     def check_let(self, expr):
         # Check kinds and extend environment
         # to allow for recursive definitions.
-        declared_names = set()
-        definitions = {}
-        definition_keys = []
-        self._env.open_scope()
-        type_declarations = []
-        for decl in expr.declarations:
-            if decl.is_type_declaration():
-                decl = self.check_type_declaration(decl)
-                declared_names.add(decl.name)
-                type_declarations.append(decl)
-            elif decl.is_definition():
-                head = decl.lhs.application_head()
-                if not head.is_variable():
-                    self.fail('declaration-head-is-not-variable',
-                               head=head,
-                               position=decl.position)
-                declared_names.add(head.name)
-                if head.name not in definitions:
-                    definition_keys.append(head.name)
-                    definitions[head.name] = []
-                definitions[head.name].append(decl)
-                if not self._env.is_locally_defined(head.name):
-                    self._env.define(head.name,
-                                     syntax.Metavar(prefix='t',
-                                                    position=decl.position))
-            else:
-                raise Exception('Check for declaration not implemented.')
 
-        defined_names = set(definitions.keys())
-        if declared_names != defined_names:
-            missing = declared_names - defined_names
-            self.fail('name-declared-but-not-defined',
-                       name=missing.pop(),
-                       position=expr.position)
+        declared_names, definitions, definition_keys, type_declarations = \
+            self.check_let_declarations_well_formed(expr)
+
+        self._env.open_scope()
+        for name, defs in definitions.items():
+            self._env.define(name, syntax.Metavar(prefix='t',
+                                                  position=defs[0].position))
 
         e_decls = []
         for name in definition_keys:
@@ -288,6 +262,39 @@ class TypeChecker:
                 syntax.Let(declarations=desugared_declarations,
                            body=desugared_body,
                            position=expr.position))
+
+    def check_let_declarations_well_formed(self, expr):
+        declared_names = set()
+        definitions = {}
+        definition_keys = []
+        type_declarations = []
+        for decl in expr.declarations:
+            if decl.is_type_declaration():
+                decl = self.check_type_declaration(decl)
+                declared_names.add(decl.name)
+                type_declarations.append(decl)
+            elif decl.is_definition():
+                head = decl.lhs.application_head()
+                if not head.is_variable():
+                    self.fail('declaration-head-is-not-variable',
+                               head=head,
+                               position=decl.position)
+                declared_names.add(head.name)
+                if head.name not in definitions:
+                    definition_keys.append(head.name)
+                    definitions[head.name] = []
+                definitions[head.name].append(decl)
+            else:
+                raise Exception('Check for declaration not implemented.')
+
+        defined_names = set(definitions.keys())
+        if declared_names != defined_names:
+            missing = declared_names - defined_names
+            self.fail('name-declared-but-not-defined',
+                       name=missing.pop(),
+                       position=expr.position)
+
+        return declared_names, definitions, definition_keys, type_declarations
 
     def check_type_declaration(self, decl):
         if self._env.is_locally_defined(decl.name):

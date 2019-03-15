@@ -218,6 +218,12 @@ class Definition(AST):
             lines.append(common.indent(decl.show(), 4))
         return '\n'.join(lines)
 
+    def free_variables(self):
+        fvs = set()
+        fvs |= self.lhs.free_variables()
+        fvs |= Let(declarations=self.where, body=self.rhs).free_variables()
+        return fvs
+
 # Expressions
 
 class IntegerConstant(AST):
@@ -480,19 +486,17 @@ class Let(AST):
         fvs = set()
 
         bvs = set()
-        for decl in declarations:
+        for decl in self.declarations:
             if not decl.is_definition():
                 continue
             head = decl.lhs.application_head()
             if head.is_variable():
                 bvs.append(head.name)
 
-        for decl in declarations:
+        for decl in self.declarations:
             if not decl.is_definition():
                 continue
-            fvs |= decl.lhs.free_variables()
-            fvs |= Let(declarations=decl.where,
-                       body=decl.rhs).free_variables()
+            fvs |= decl.free_variables()
         fvs |= self.body.free_variables()
         fvs = fvs - bvs
         return fvs
