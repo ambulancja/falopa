@@ -281,7 +281,10 @@ class Closure(Value):
         self.env = env
 
     def show(self):
-        return '<closure>'
+        return '(λ {var} . {body})@...'.format(
+                 var=self.var,
+                 body=self.body.show()
+               )
 
     def is_closure(self):
         return True
