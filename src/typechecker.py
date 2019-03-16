@@ -2,6 +2,7 @@ import common
 import syntax
 import kinds
 import environment
+import dependencies
 
 def primitive_types():
     return [
@@ -229,50 +230,74 @@ class TypeChecker:
         # Check kinds and extend environment
         # to allow for recursive definitions.
 
-        declared_names, definitions, definition_keys, type_declarations = \
+        definitions, definition_keys, type_declarations = \
             self.check_let_declarations_well_formed(expr)
 
-        self._env.open_scope()
-        for name, defs in definitions.items():
-            self._env.define(name, syntax.Metavar(prefix='t',
-                                                  position=defs[0].position))
+        # TODO: Dependency graph
+        graph = self.dependency_graph(definitions)
+        partition = dependencies.partition_dependencies(graph)
 
-        e_decls = []
-        for name in definition_keys:
-            e_decls.append(self.desugar_definition(name, definitions[name]))
-
-        self.generalize_types_in_current_scope()
-        self.check_declared_instantiate_real(type_declarations) 
-
-        body_type, desugared_body = self.check_expr(expr.body)
-
-        # To reconstruct the final AST
         desugared_declarations = []
-        for e_decl in e_decls:
-            t_decl = syntax.TypeDeclaration(
-                         name=e_decl.lhs.name,
-                         type=self._env.value(e_decl.lhs.name),
-                         position=e_decl.position
-                     )
-            desugared_declarations.append(t_decl)
-            desugared_declarations.append(e_decl)
+        for part in partition:
 
-        self._env.close_scope()
-        return (body_type,
-                syntax.Let(declarations=desugared_declarations,
-                           body=desugared_body,
-                           position=expr.position))
+            part_definitions = {}
+            part_type_declarations = {}
+            for x in part:
+                part_definitions[x] = definitions[x]
+                if x in type_declarations:
+                    part_type_declarations[x] = type_declarations[x]
+            part_definition_keys = []
+            for k in definition_keys:
+                if k in part_definitions:
+                    part_definition_keys.append(k)
+
+            self._env.open_scope()
+            for name, defs in part_definitions.items():
+                self._env.define(name,
+                                 syntax.Metavar(prefix='t',
+                                                position=defs[0].position))
+
+            e_decls = []
+            for name in part_definition_keys:
+                e_decls.append(
+                  self.desugar_definition(name, part_definitions[name])
+                )
+
+            self.generalize_types_in_current_scope()
+            self.check_declared_instantiate_real(part_type_declarations) 
+
+            # To reconstruct the final AST
+            ds = []
+            for e_decl in e_decls:
+                t_decl = syntax.TypeDeclaration(
+                             name=e_decl.lhs.name,
+                             type=self._env.value(e_decl.lhs.name),
+                             position=e_decl.position
+                         )
+                ds.append(t_decl)
+                ds.append(e_decl)
+            desugared_declarations.append(ds)
+
+        t_body, e_body = self.check_expr(expr.body)
+        for part in reversed(partition):
+            self._env.close_scope()
+            e_body = syntax.Let(
+                       declarations=desugared_declarations.pop(),
+                       body=e_body,
+                       position=expr.position)
+
+        return t_body, e_body
 
     def check_let_declarations_well_formed(self, expr):
         declared_names = set()
         definitions = {}
         definition_keys = []
-        type_declarations = []
+        type_declarations = {}
         for decl in expr.declarations:
             if decl.is_type_declaration():
                 decl = self.check_type_declaration(decl)
                 declared_names.add(decl.name)
-                type_declarations.append(decl)
+                type_declarations[decl.name] = decl
             elif decl.is_definition():
                 head = decl.lhs.application_head()
                 if not head.is_variable():
@@ -294,7 +319,18 @@ class TypeChecker:
                        name=missing.pop(),
                        position=expr.position)
 
-        return declared_names, definitions, definition_keys, type_declarations
+        return definitions, definition_keys, type_declarations
+
+    def dependency_graph(self, definitions):
+        graph = {}
+        keys = set(definitions.keys())
+        for name, defs in definitions.items():
+            fvs = set()
+            for definition in defs:
+                fvs |= definition.free_variables()
+            fvs &= keys
+            graph[name] = fvs
+        return graph
 
     def check_type_declaration(self, decl):
         if self._env.is_locally_defined(decl.name):
@@ -406,7 +442,7 @@ class TypeChecker:
     def check_declared_instantiate_real(self, type_declarations):
         # Check that user-defined type declarations instantiate the
         # actual type.
-        for decl in type_declarations:
+        for decl in type_declarations.values():
             user_type = decl.type
             actual_type = self._env.value(decl.name)
             while user_type.is_forall():

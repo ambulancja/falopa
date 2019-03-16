@@ -491,7 +491,7 @@ class Let(AST):
                 continue
             head = decl.lhs.application_head()
             if head.is_variable():
-                bvs.append(head.name)
+                bvs.add(head.name)
 
         for decl in self.declarations:
             if not decl.is_definition():
