@@ -20,8 +20,8 @@ data Type where
   _->_ : Type → Type → Type
 
 data Context where
-  empty : Context
-  _,_   : Context → Type → Context
+  ∅   : Context
+  _,_ : Context → Type → Context
 
 zero  ∈ (Γ , A) ∷ A    = ()
 suc x ∈ (Γ , _) ∷ A    = x ∈ Γ ∷ A
@@ -31,9 +31,16 @@ suc x ∈ (Γ , _) ∷ A    = x ∈ Γ ∷ A
                       >> Γ ⊢ s ∷ A
   where A = _
 
-main = witness (A -> B -> A)
+witness : Type → Term
+witness A = ∅ ⊢ t ∷ A >> t
+  where t = _
+
+infer : Term → Type
+infer t = ∅ ⊢ t ∷ A >> A
+  where A = _
+
+main = witness ((A -> B) -> (B -> C) -> A -> C)
   where A = base 0
         B = base 1
-        witness formula = empty ⊢ w ∷ formula >> w
-          where w = _
+        C = base 2
 
