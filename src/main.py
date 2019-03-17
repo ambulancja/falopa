@@ -2,7 +2,7 @@ import sys
 sys.setrecursionlimit(1000000)
 
 import syntax
-import parser
+import parsing
 import typechecker
 import evaluator_dfs
 
@@ -10,8 +10,8 @@ def run(filename):
     with open(filename) as f:
         source = f.read()
 
-    parser_ = parser.Parser(source, filename=filename)
-    ast = parser_.parse_program()
+    parser = parsing.Parser(source, filename=filename)
+    ast = parser.parse_program()
     #print(ast.show())
 
     typechecker_ = typechecker.TypeChecker()
