@@ -4,7 +4,7 @@ sys.setrecursionlimit(1000000)
 import syntax
 import parsing
 import typechecker
-import evaluator_dfs
+import evaluator_bfs
 
 def run(filename):
     with open(filename) as f:
@@ -18,7 +18,7 @@ def run(filename):
     checked_ast = typechecker_.check_program(ast)
     #print(checked_ast.show())
 
-    evaluator = evaluator_dfs.Evaluator()
+    evaluator = evaluator_bfs.Evaluator()
     results = evaluator.eval_program(checked_ast, strategy='strong')
     for result in results:
         print(result.show())
